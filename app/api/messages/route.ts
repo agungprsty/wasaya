@@ -33,13 +33,13 @@ export async function POST(request: NextRequest) {
   const { error, user } = requireUser(request);
   if (error) return error;
 
-  const { to, body } = await request.json();
-  if (!to || !body) {
-    return NextResponse.json({ error: "Recipient number and message body are required" }, { status: 400 });
+  const { to, body, media } = await request.json();
+  if (!to) {
+    return NextResponse.json({ error: "Recipient number is required" }, { status: 400 });
   }
 
   try {
-    await whatsappManager.sendMessage(user!.userId, to, body);
+    await whatsappManager.sendMessage(user!.userId, to, body, media || null);
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (err: any) {
     const msg = err.message || "";

@@ -13,7 +13,9 @@
 # testing
 /coverage
 
+# whatsapp cache
 /wa_sessions
+/.wwebjs_cache
 
 # next.js
 /.next/

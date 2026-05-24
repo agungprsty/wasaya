@@ -6,7 +6,9 @@ A full-featured WhatsApp Gateway built with Next.js 16, PostgreSQL, and whatsapp
 
 - **Dashboard** — Overview stats, quick start checklist
 - **Authentication** — Register/login with JWT (httpOnly cookies, bcrypt)
-- **Send Message** — Compose and send WhatsApp messages via connected device
+- **Send Message** — Compose and send WhatsApp messages with optional media (images, PDFs, documents)
+- **Message Templates** — Save and reuse message templates with placeholders for consistent messaging
+- **Broadcast** — Send bulk messages to multiple contacts with automatic rate limiting
 - **Message History** — Paginated list with status filters (sent, delivered, failed, pending)
 - **Contacts** — Manage contact list (add, delete)
 - **WhatsApp Device** — Connect your WhatsApp number via QR code (whatsapp-web.js)
@@ -78,6 +80,7 @@ JWT_SECRET=your-super-secret-jwt-key-change-in-production
 | `User` | Account management (name, email, password) |
 | `WhatsAppMessage` | Outgoing and incoming messages with status tracking |
 | `Contact` | Saved phone numbers per user |
+| `MessageTemplate` | Reusable message templates per user |
 | `ApiKey` | API access tokens per user |
 | `Settings` | Webhook URL and secret per user |
 | `WhatsAppSession` | WhatsApp device connection state |
@@ -97,7 +100,19 @@ JWT_SECRET=your-super-secret-jwt-key-change-in-production
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/messages` | List messages (paginated, filter by status) |
-| POST | `/api/messages` | Send a WhatsApp message |
+| POST | `/api/messages` | Send a WhatsApp message (supports media attachment) |
+
+### Broadcast
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/broadcast` | Send a message to multiple recipients (rate-limited) |
+
+### Templates
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/templates` | List message templates |
+| POST | `/api/templates` | Create a message template |
+| DELETE | `/api/templates?id={id}` | Delete a template |
 
 ### Contacts
 | Method | Path | Description |

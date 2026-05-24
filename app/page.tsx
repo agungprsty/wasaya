@@ -1,9 +1,19 @@
 import Link from "next/link";
+import AuthNavButtons from "./AuthNavButtons";
 
 const features = [
   {
-    title: "Bulk Messaging",
-    desc: "Send thousands of messages simultaneously with delivery tracking and scheduling.",
+    title: "Send Message",
+    desc: "Compose and send WhatsApp messages with optional media attachments — images, PDFs, and documents.",
+    icon: (
+      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.125A59.769 59.769 0 0121.485 12 59.768 59.768 0 013.27 20.875L5.999 12zm0 0h7.5" />
+      </svg>
+    ),
+  },
+  {
+    title: "Broadcast Messaging",
+    desc: "Send bulk messages to hundreds of contacts at once with automatic rate limiting to prevent bans.",
     icon: (
       <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
@@ -11,35 +21,26 @@ const features = [
     ),
   },
   {
-    title: "Smart Automation",
-    desc: "Automate replies, broadcasts, and workflows with customizable templates and triggers.",
+    title: "Message Templates",
+    desc: "Save reusable message templates with placeholders for quick broadcasting and consistent messaging.",
     icon: (
       <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
       </svg>
     ),
   },
   {
-    title: "Real-time Analytics",
-    desc: "Track message delivery, open rates, and engagement with detailed reporting dashboards.",
+    title: "WhatsApp Device",
+    desc: "Connect your WhatsApp number using QR code pairing via whatsapp-web.js with session persistence.",
     icon: (
       <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-      </svg>
-    ),
-  },
-  {
-    title: "RESTful API",
-    desc: "Integrate seamlessly with your existing systems using our comprehensive REST API.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
       </svg>
     ),
   },
   {
     title: "Contact Management",
-    desc: "Organize your contacts, create segments, and manage groups with ease.",
+    desc: "Manage your contact list with add, delete, and bulk import capabilities for easy targeting.",
     icon: (
       <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
@@ -47,11 +48,11 @@ const features = [
     ),
   },
   {
-    title: "Secure & Reliable",
-    desc: "Enterprise-grade security with end-to-end encryption and 99.9% uptime SLA.",
+    title: "RESTful API & Webhooks",
+    desc: "Full REST API for programmatic access plus webhook integration for receiving incoming messages.",
     icon: (
       <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
       </svg>
     ),
   },
@@ -59,15 +60,8 @@ const features = [
 
 const steps = [
   { num: "01", title: "Create Account", desc: "Sign up and get your API keys ready in minutes." },
-  { num: "02", title: "Connect WhatsApp", desc: "Link your WhatsApp Business number via our simple wizard." },
-  { num: "03", title: "Start Messaging", desc: "Send messages, automate replies, and track performance." },
-];
-
-const stats = [
-  { value: "10K+", label: "Active Users" },
-  { value: "1M+", label: "Messages Sent" },
-  { value: "99.9%", label: "Uptime" },
-  { value: "5ms", label: "Avg Latency" },
+  { num: "02", title: "Connect WhatsApp", desc: "Link your WhatsApp number via QR code pairing — just scan, no extra hardware." },
+  { num: "03", title: "Start Messaging", desc: "Send individual messages or broadcast to multiple contacts with templates." },
 ];
 
 export default function Home() {
@@ -86,17 +80,7 @@ export default function Home() {
             <a href="#features" className="text-sm font-medium text-zinc-600 hover:text-[#075E54]">Features</a>
             <a href="#how-it-works" className="text-sm font-medium text-zinc-600 hover:text-[#075E54]">How It Works</a>
           </nav>
-          <div className="flex items-center gap-4">
-            <Link href="/login" className="text-sm font-medium text-zinc-600 hover:text-[#075E54]">
-              Sign In
-            </Link>
-            <Link
-              href="/register"
-              className="inline-flex h-10 items-center justify-center rounded-full bg-[#25D366] px-6 text-sm font-medium text-white transition-colors hover:bg-[#1DAF5A]"
-            >
-              Get Started
-            </Link>
-          </div>
+          <AuthNavButtons />
         </div>
       </header>
 
@@ -135,12 +119,22 @@ export default function Home() {
 
           {/* Stats */}
           <div className="mt-24 grid grid-cols-2 gap-8 md:grid-cols-4">
-            {stats.map((stat) => (
-              <div key={stat.label} className="text-center">
-                <p className="text-3xl font-bold text-[#075E54]">{stat.value}</p>
-                <p className="mt-1 text-sm text-zinc-500">{stat.label}</p>
-              </div>
-            ))}
+            <div className="text-center">
+              <p className="text-3xl font-bold text-[#075E54]">10K+</p>
+              <p className="mt-1 text-sm text-zinc-500">Active Users</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold text-[#075E54]">1M+</p>
+              <p className="mt-1 text-sm text-zinc-500">Messages Sent</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold text-[#075E54]">99.9%</p>
+              <p className="mt-1 text-sm text-zinc-500">Uptime</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold text-[#075E54]">API</p>
+              <p className="mt-1 text-sm text-zinc-500">First</p>
+            </div>
           </div>
         </div>
       </section>

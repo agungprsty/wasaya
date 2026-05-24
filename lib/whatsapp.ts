@@ -1,4 +1,4 @@
-import { Client, LocalAuth } from "whatsapp-web.js";
+import { Client, LocalAuth, MessageMedia } from "whatsapp-web.js";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import path from "path";
@@ -124,12 +124,25 @@ class WhatsAppManager {
     });
   }
 
-  async sendMessage(userId: string, to: string, body: string) {
+  async sendMessage(userId: string, to: string, body: string, media: { base64: string; mimetype: string; filename?: string } | null = null) {
     const client = this.clients.get(userId);
     if (!client) throw new Error("WhatsApp not connected");
 
     const chatId = to.includes("@c.us") ? to : `${to}@c.us`;
-    const sent = await client.sendMessage(chatId, body);
+
+    let sent;
+    if (media) {
+      const msgMedia = new MessageMedia(
+        media.mimetype,
+        media.base64,
+        media.filename || "file"
+      );
+      sent = await client.sendMessage(chatId, msgMedia, {
+        caption: body || undefined,
+      });
+    } else {
+      sent = await client.sendMessage(chatId, body);
+    }
 
     await this.db.whatsAppMessage.create({
       data: {
