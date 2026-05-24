@@ -1,0 +1,45 @@
+services:
+  whatsapp-gateway:
+    build: .
+    container_name: whatsapp-gateway
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - JWT_SECRET=${JWT_SECRET}
+      - API_SECRET=${API_SECRET}
+      - PGHOST=db
+      - PGPORT=5432
+      - PGDATABASE=whatsapp_gateway
+      - PGUSER=postgres
+      - PGPASSWORD=${PGPASSWORD:-postgres}
+      - SESSION_PATH=/app/data/.session
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: whatsapp-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: whatsapp_gateway
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${PGPASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

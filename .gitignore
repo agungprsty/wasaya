@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+.output/
+.nuxt/
+
+# Environment
+.env
+.env.local
+
+# Session data
+data/
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Bun
+bun.lockb
