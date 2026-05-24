@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent, useRef } from "react";
 import { extractVariables, interpolate } from "@/lib/template-utils";
 
 interface Contact {
@@ -15,6 +15,12 @@ interface Template {
   body: string;
 }
 
+interface MsgResult {
+  to: string;
+  status: string;
+  error?: string;
+}
+
 export default function BroadcastPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -22,19 +28,26 @@ export default function BroadcastPage() {
   const [manualNumbers, setManualNumbers] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const [results, setResults] = useState<{ to: string; status: string }[] | null>(null);
+  const [sendingProgress, setSendingProgress] = useState<{ sent: number; total: number } | null>(null);
+  const [results, setResults] = useState<MsgResult[] | null>(null);
 
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
 
+  const progressRef = useRef<ReturnType<typeof setInterval>>(undefined);
+
   useEffect(() => {
     Promise.all([
-      fetch("/api/contacts").then((r) => r.json().catch(() => ({ contacts: [] }))),
+      fetch("/api/contacts?all=true").then((r) => r.json().catch(() => ({ contacts: [] }))),
       fetch("/api/templates").then((r) => r.json().catch(() => ({ templates: [] }))),
     ]).then(([c, t]) => {
       setContacts(c.contacts || []);
       setTemplates(t.templates || []);
     });
+  }, []);
+
+  useEffect(() => {
+    return () => { if (progressRef.current) clearInterval(progressRef.current); };
   }, []);
 
   function toggleContact(id: string) {
@@ -80,37 +93,81 @@ export default function BroadcastPage() {
       .filter(Boolean);
   }
 
+  function getSelectedContactMap(): Map<string, Contact> {
+    const map = new Map<string, Contact>();
+    for (const c of contacts) {
+      if (selectedContacts.includes(c.id)) map.set(c.phone, c);
+    }
+    return map;
+  }
+
+  function prepareMessages(): { to: string; body: string }[] {
+    const msgs: { to: string; body: string }[] = [];
+    const contactMap = getSelectedContactMap();
+    const manualPhones = parseManualNumbers();
+
+    // Contacts with personalization
+    for (const c of contactMap.values()) {
+      let msgBody = body;
+      if (selectedTemplate) {
+        const merged = { ...variableValues };
+        const vars = extractVariables(selectedTemplate.body);
+        if (vars.includes("name") && !variableValues.name) merged.name = c.name;
+        if (vars.includes("phone") && !variableValues.phone) merged.phone = c.phone;
+        msgBody = interpolate(selectedTemplate.body, merged);
+      }
+      msgs.push({ to: c.phone, body: msgBody });
+    }
+
+    // Manual numbers (skip duplicates with contacts)
+    const contactPhones = new Set(contactMap.keys());
+    for (const to of manualPhones) {
+      if (!contactPhones.has(to)) msgs.push({ to, body });
+    }
+
+    return msgs;
+  }
+
   function getRecipients(): string[] {
-    const fromContacts = contacts
-      .filter((c) => selectedContacts.includes(c.id))
-      .map((c) => c.phone);
-    const fromManual = parseManualNumbers();
-    return [...new Set([...fromContacts, ...fromManual])];
+    return prepareMessages().map((m) => m.to);
   }
 
   async function handleSend(e: FormEvent) {
     e.preventDefault();
-    const recipients = getRecipients();
-    if (!recipients.length || !body.trim()) return;
+    const messages = prepareMessages();
+    if (!messages.length || !body.trim()) return;
 
     setSending(true);
     setResults(null);
+    setSendingProgress({ sent: 0, total: messages.length });
+
+    // Animate estimated progress (1 msg per ~1.2s)
+    progressRef.current = setInterval(() => {
+      setSendingProgress((prev) =>
+        prev && prev.sent < prev.total
+          ? { ...prev, sent: Math.min(prev.sent + 1, prev.total) }
+          : prev
+      );
+    }, 1200);
 
     try {
       const res = await fetch("/api/broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipients, body: body.trim() }),
+        body: JSON.stringify({ messages }),
       });
       const data = await res.json().catch(() => ({}));
       setResults(data.results || []);
     } catch {
       setResults([]);
     } finally {
+      if (progressRef.current) clearInterval(progressRef.current);
       setSending(false);
+      setSendingProgress(null);
     }
   }
 
+  const currentVariables = selectedTemplate ? extractVariables(selectedTemplate.body) : [];
   const summary = results
     ? {
         total: results.length,
@@ -120,18 +177,20 @@ export default function BroadcastPage() {
       }
     : null;
 
-  const currentVariables = selectedTemplate ? extractVariables(selectedTemplate.body) : [];
+  const recipientCount = getRecipients().length;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-[#075E54]">Broadcast</h1>
-        <p className="mt-1 text-sm text-zinc-500">Send a message to multiple recipients at once.</p>
+        <p className="mt-1 text-sm text-zinc-500">
+          Send a message to multiple recipients at once.
+          {selectedTemplate && currentVariables.includes("name") && " {{name}} fills from each contact."}
+        </p>
       </div>
 
       <form onSubmit={handleSend} className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Contacts selector */}
           <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-[#075E54]">Contacts</h2>
@@ -146,7 +205,12 @@ export default function BroadcastPage() {
             ) : (
               <div className="max-h-60 space-y-1 overflow-y-auto">
                 {contacts.map((c) => (
-                  <label key={c.id} className={`flex items-center gap-3 rounded-lg px-3 py-2 cursor-pointer transition-colors ${selectedContacts.includes(c.id) ? "bg-[#DCF8C6]" : "hover:bg-zinc-50"}`}>
+                  <label
+                    key={c.id}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2 cursor-pointer transition-colors ${
+                      selectedContacts.includes(c.id) ? "bg-[#DCF8C6]" : "hover:bg-zinc-50"
+                    }`}
+                  >
                     <input
                       type="checkbox"
                       checked={selectedContacts.includes(c.id)}
@@ -162,7 +226,6 @@ export default function BroadcastPage() {
             <p className="mt-2 text-xs text-zinc-400">{selectedContacts.length} selected</p>
           </div>
 
-          {/* Manual numbers */}
           <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
             <h2 className="text-sm font-semibold text-[#075E54]">Or enter numbers manually</h2>
             <textarea
@@ -178,7 +241,6 @@ export default function BroadcastPage() {
           </div>
         </div>
 
-        {/* Templates */}
         {templates.length > 0 && (
           <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
             <div className="flex items-center justify-between">
@@ -190,46 +252,79 @@ export default function BroadcastPage() {
               )}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              {templates.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => applyTemplate(t)}
-                  className={`rounded-lg border px-4 py-2 text-xs font-medium transition-colors ${
-                    selectedTemplate?.id === t.id
-                      ? "border-[#25D366] bg-[#DCF8C6] text-[#075E54]"
-                      : "border-[#DCF8C6] text-zinc-600 hover:border-[#25D366] hover:text-[#075E54]"
-                  }`}
-                >
-                  {t.name}
-                </button>
-              ))}
+              {templates.map((t) => {
+                const isActive = selectedTemplate?.id === t.id;
+                const varCount = extractVariables(t.body).length;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => applyTemplate(t)}
+                    className={`rounded-lg border px-4 py-2 text-xs font-medium transition-colors ${
+                      isActive
+                        ? "border-[#25D366] bg-[#DCF8C6] text-[#075E54]"
+                        : "border-[#DCF8C6] text-zinc-600 hover:border-[#25D366] hover:text-[#075E54]"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {t.name}
+                      {varCount > 0 && (
+                        <span className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                          isActive ? "bg-white/60 text-[#075E54]" : "bg-[#DCF8C6] text-zinc-500"
+                        }`}>
+                          {varCount} var
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* Variable inputs */}
         {currentVariables.length > 0 && (
           <div className="rounded-xl border border-[#DCF8C6] bg-[#f0fdf4] p-6">
-            <h2 className="text-sm font-semibold text-[#075E54]">Template Variables</h2>
-            <div className="mt-3 space-y-3">
-              {currentVariables.map((v) => (
-                <div key={v}>
-                  <label className="block text-xs font-medium text-zinc-600 capitalize">{v}</label>
-                  <input
-                    type="text"
-                    value={variableValues[v] || ""}
-                    onChange={(e) => handleVariableChange(v, e.target.value)}
-                    className="mt-1 block w-full rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
-                    placeholder={`Enter ${v}...`}
-                  />
-                </div>
-              ))}
+            <div className="flex items-center gap-1.5 mb-3">
+              <svg className="h-4 w-4 text-[#075E54]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+              </svg>
+              <h2 className="text-sm font-semibold text-[#075E54]">Template Variables</h2>
+            </div>
+            <div className="space-y-3">
+              {currentVariables.map((v) => {
+                const isContactVar = v === "name" || v === "phone";
+                return (
+                  <div key={v}>
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-600">
+                      <span className="inline-flex items-center rounded bg-[#DCF8C6] px-1.5 py-0.5 font-mono text-[10px] text-[#075E54]">
+                        {'{{'}{v}{'}}'}
+                      </span>
+                      <span className="capitalize">{v}</span>
+                      {isContactVar && (
+                        <span className="text-[10px] text-zinc-400">auto-filled per contact</span>
+                      )}
+                    </label>
+                    <input
+                      type="text"
+                      value={variableValues[v] || ""}
+                      onChange={(e) => handleVariableChange(v, e.target.value)}
+                      disabled={isContactVar}
+                      className={`mt-1 block w-full rounded-lg border bg-white px-3.5 py-2 text-sm transition-colors focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15 ${
+                        isContactVar
+                          ? "border-zinc-100 bg-zinc-50 text-zinc-400 cursor-not-allowed"
+                          : "border-zinc-200 focus:border-[#25D366]"
+                      }`}
+                      placeholder={isContactVar ? "Auto-filled from contact" : `Enter ${v}...`}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* Message body */}
         <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
           <h2 className="text-sm font-semibold text-[#075E54]">Message</h2>
           <textarea
@@ -247,21 +342,62 @@ export default function BroadcastPage() {
             placeholder="Type your message here..."
           />
           <p className="mt-1 text-xs text-zinc-400">
-            Sending to {getRecipients().length} recipient{getRecipients().length !== 1 ? "s" : ""}
-            {getRecipients().length > 0 && ` (approx. ${Math.ceil(getRecipients().length * 1.2)}s)`}
+            Sending to {recipientCount} recipient{recipientCount !== 1 ? "s" : ""}
+            {recipientCount > 0 && ` (approx. ${Math.ceil(recipientCount * 1.2)}s)`}
           </p>
         </div>
 
+        {/* Progress indicator */}
+        {sendingProgress && (
+          <div className="rounded-xl border border-[#DCF8C6] bg-[#f0fdf4] p-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-[#075E54]">
+                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Sending {Math.min(sendingProgress.sent, sendingProgress.total)} of {sendingProgress.total}
+              </span>
+              <span className="text-xs text-zinc-400">
+                {Math.round((sendingProgress.sent / sendingProgress.total) * 100)}%
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-[#DCF8C6]">
+              <div
+                className="h-full rounded-full bg-[#25D366] transition-all duration-500"
+                style={{ width: `${Math.min((sendingProgress.sent / sendingProgress.total) * 100, 100)}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-zinc-400">
+              Estimated {(sendingProgress.total - sendingProgress.sent) * 1.2}s remaining
+            </p>
+          </div>
+        )}
+
         <button
           type="submit"
-          disabled={sending || getRecipients().length === 0 || !body.trim()}
-          className="flex h-11 w-full items-center justify-center rounded-xl bg-[#25D366] px-5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1DAF5A] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
+          disabled={sending || recipientCount === 0 || !body.trim()}
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1DAF5A] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
         >
-          {sending ? "Sending..." : `Send to ${getRecipients().length} recipient${getRecipients().length !== 1 ? "s" : ""}`}
+          {sending ? (
+            <>
+              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Sending...
+            </>
+          ) : (
+            <>
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+              </svg>
+              Send to {recipientCount} recipient{recipientCount !== 1 ? "s" : ""}
+            </>
+          )}
         </button>
       </form>
 
-      {/* Results */}
       {summary && (
         <div className="mt-8 rounded-xl border border-[#DCF8C6] bg-white p-6">
           <h2 className="text-sm font-semibold text-[#075E54]">Results</h2>

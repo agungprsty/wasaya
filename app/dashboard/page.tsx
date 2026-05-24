@@ -4,18 +4,21 @@ import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({ messages: 0, contacts: 0, sent: 0, failed: 0 });
+  const [webhookUrl, setWebhookUrl] = useState("");
 
   useEffect(() => {
     Promise.all([
       fetch("/api/messages?limit=1").then((r) => r.json().catch(() => ({}))),
-      fetch("/api/contacts").then((r) => r.json().catch(() => ({}))),
-    ]).then(([msgData, contactData]) => {
+      fetch("/api/contacts?limit=1").then((r) => r.json().catch(() => ({}))),
+      fetch("/api/settings").then((r) => r.json().catch(() => ({}))),
+    ]).then(([msgData, contactData, settingsData]) => {
       setStats({
         messages: msgData.total || 0,
-        contacts: contactData.contacts?.length || 0,
+        contacts: contactData.total || contactData.contacts?.length || 0,
         sent: 0,
         failed: 0,
       });
+      setWebhookUrl(settingsData.settings?.webhookUrl || "");
     });
   }, []);
 
@@ -50,11 +53,11 @@ export default function DashboardPage() {
             {[
               { label: "Add contacts", done: stats.contacts > 0 },
               { label: "Send your first message", done: stats.messages > 0 },
-              { label: "Configure webhook", done: false },
-            ].map((item) => (
+              { label: "Configure webhook", done: !!webhookUrl },
+            ].map((item, i) => (
               <li key={item.label} className="flex items-center gap-3">
                 <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${item.done ? "bg-[#DCF8C6] text-[#075E54]" : "border border-zinc-300 text-zinc-400"}`}>
-                  {item.done ? "✓" : String(stats.messages > 0 ? 2 : 1)}
+                  {item.done ? "✓" : i + 1}
                 </div>
                 <span className={`text-sm ${item.done ? "text-zinc-400 line-through" : "text-zinc-700"}`}>{item.label}</span>
               </li>
@@ -65,7 +68,7 @@ export default function DashboardPage() {
         <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
           <h2 className="text-base font-semibold text-[#075E54]">Account Info</h2>
           <div className="mt-5 space-y-3 text-sm text-zinc-600">
-            <p>API keys: {stats.messages > 0 ? "✅ Configured" : "—"}</p>
+            <p>Webhook: {webhookUrl ? "✅ Configured" : "—"}</p>
             <p>Messages sent: {stats.messages}</p>
             <p>Contacts saved: {stats.contacts}</p>
           </div>

@@ -16,6 +16,10 @@ interface WaContact {
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const limit = 10;
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -29,11 +33,17 @@ export default function ContactsPage() {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState("");
 
-  function fetchContacts() {
+  function fetchContacts(p?: number) {
     setLoading(true);
-    fetch("/api/contacts")
-      .then((res) => res.json().catch(() => ({ contacts: [] })))
-      .then((data) => setContacts(data.contacts || []))
+    const pg = p ?? page;
+    fetch(`/api/contacts?page=${pg}&limit=${limit}`)
+      .then((res) => res.json().catch(() => ({ contacts: [], total: 0, totalPages: 1 })))
+      .then((data) => {
+        setContacts(data.contacts || []);
+        setTotal(data.total || 0);
+        setTotalPages(data.totalPages || 1);
+        setPage(pg);
+      })
       .finally(() => setLoading(false));
   }
 
@@ -210,30 +220,78 @@ export default function ContactsPage() {
       <div className="overflow-hidden rounded-xl border border-[#DCF8C6] bg-white">
         {loading ? (
           <div className="p-8 text-center text-sm text-zinc-400">Loading...</div>
-        ) : contacts.length === 0 ? (
+        ) : total === 0 ? (
           <div className="p-8 text-center text-sm text-zinc-400">No contacts yet. Add your first contact.</div>
         ) : (
-          <div className="divide-y divide-[#DCF8C6]">
-            {contacts.map((c) => (
-              <div key={c.id} className="flex items-center justify-between px-6 py-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DCF8C6] text-sm font-semibold text-[#075E54]">
-                    {c.name.charAt(0).toUpperCase()}
+          <>
+            <div className="divide-y divide-[#DCF8C6]">
+              {contacts.map((c) => (
+                <div key={c.id} className="flex items-center justify-between px-6 py-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DCF8C6] text-sm font-semibold text-[#075E54]">
+                      {c.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">{c.name}</p>
+                      <p className="text-sm text-zinc-500">{c.phone}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-zinc-900">{c.name}</p>
-                    <p className="text-sm text-zinc-500">{c.phone}</p>
-                  </div>
+                  <button
+                    onClick={() => handleDelete(c.id)}
+                    className="text-sm text-zinc-400 hover:text-red-500"
+                  >
+                    Delete
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleDelete(c.id)}
-                  className="text-sm text-zinc-400 hover:text-red-500"
-                >
-                  Delete
-                </button>
+              ))}
+            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-[#DCF8C6] px-6 py-3">
+                <p className="text-xs text-zinc-400">
+                  Page {page} of {totalPages} ({total} contacts)
+                </p>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => fetchContacts(page - 1)}
+                    disabled={page <= 1}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-zinc-600 hover:bg-[#DCF8C6]/40 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </svg>
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                    .map((p, idx, arr) => (
+                      <span key={p} className="contents">
+                        {idx > 0 && arr[idx - 1] !== p - 1 && (
+                          <span className="flex h-8 w-8 items-center justify-center text-xs text-zinc-300">...</span>
+                        )}
+                        <button
+                          onClick={() => fetchContacts(p)}
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-medium ${
+                            p === page
+                              ? "bg-[#25D366] text-white"
+                              : "text-zinc-600 hover:bg-[#DCF8C6]/40"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      </span>
+                    ))}
+                  <button
+                    onClick={() => fetchContacts(page + 1)}
+                    disabled={page >= totalPages}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-zinc-600 hover:bg-[#DCF8C6]/40 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
 

@@ -8,16 +8,25 @@ export async function POST(request: NextRequest) {
   const { error, user } = requireUser(request);
   if (error) return error;
 
-  const { recipients, body } = await request.json();
-  if (!recipients?.length || !body) {
+  const body = await request.json();
+
+  // Support both new format { messages: [{ to, body }] } and legacy { recipients, body }
+  const messages: { to: string; body: string }[] = body.messages
+    || (body.recipients?.length
+      ? body.recipients.map((to: string) => ({ to, body: body.body }))
+      : []);
+
+  if (!messages.length) {
     return NextResponse.json({ error: "Recipients and message body are required" }, { status: 400 });
   }
 
   const results: { to: string; status: string; error?: string }[] = [];
+  let current = 0;
 
-  for (const to of recipients) {
+  for (const { to, body: msgBody } of messages) {
+    current++;
     try {
-      await whatsappManager.sendMessage(user!.userId, to, body);
+      await whatsappManager.sendMessage(user!.userId, to, msgBody);
       results.push({ to, status: "sent" });
     } catch (err: any) {
       const msg = err.message || "";
@@ -28,7 +37,7 @@ export async function POST(request: NextRequest) {
             to,
             from: "gateway",
             messageId: crypto.randomUUID(),
-            body,
+            body: msgBody,
             status: "pending",
           },
         });
