@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
-  const { error, user } = requireUser(request);
+  const { error, user } = await requireUser(request);
   if (error) return error;
 
   let settings = await prisma.settings.findUnique({ where: { userId: user!.userId } });
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const { error, user } = requireUser(request);
+  const { error, user } = await requireUser(request);
   if (error) return error;
 
   const { webhookUrl, webhookSecret } = await request.json();

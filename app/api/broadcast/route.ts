@@ -5,7 +5,7 @@ import { whatsappManager } from "@/lib/whatsapp";
 import crypto from "crypto";
 
 export async function POST(request: NextRequest) {
-  const { error, user } = requireUser(request);
+  const { error, user } = await requireUser(request);
   if (error) return error;
 
   const body = await request.json();

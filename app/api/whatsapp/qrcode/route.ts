@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/api-auth";
 import { whatsappManager } from "@/lib/whatsapp";
 
 export async function GET(request: NextRequest) {
-  const { error, user } = requireUser(request);
+  const { error, user } = await requireUser(request);
   if (error) return error;
 
   const qr = await whatsappManager.getQR(user!.userId);

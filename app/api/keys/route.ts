@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/api-auth";
 import crypto from "crypto";
 
 export async function GET(request: NextRequest) {
-  const { error, user } = requireUser(request);
+  const { error, user } = await requireUser(request);
   if (error) return error;
 
   const keys = await prisma.apiKey.findMany({
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { error, user } = requireUser(request);
+  const { error, user } = await requireUser(request);
   if (error) return error;
 
   const { name } = await request.json();
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { error, user } = requireUser(request);
+  const { error, user } = await requireUser(request);
   if (error) return error;
 
   const { searchParams } = new URL(request.url);

@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/api-auth";
 import { whatsappManager } from "@/lib/whatsapp";
 
 export async function GET(request: NextRequest) {
-  const { error, user } = requireUser(request);
+  const { error, user } = await requireUser(request);
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { error, user } = requireUser(request);
+  const { error, user } = await requireUser(request);
   if (error) return error;
 
   const { to, body, media } = await request.json();

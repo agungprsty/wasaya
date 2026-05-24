@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     // Process all users
   } else {
     // User-triggered via session (from page load)
-    const auth = requireUser(request);
+    const auth = await requireUser(request);
     if (auth.error) return auth.error;
     targetUserId = auth.user!.userId;
   }
