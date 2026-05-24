@@ -173,6 +173,26 @@ class WhatsAppManager {
     });
   }
 
+  async getContacts(userId: string) {
+    await this.ensureInitialized().catch(() => {});
+    const client = this.clients.get(userId);
+    if (!client) throw new Error("WhatsApp not connected");
+    const contacts = await client.getContacts();
+    const seen = new Set<string>();
+    return contacts
+      .filter((c) => {
+        if (!c.isMyContact || !c.id?.user) return false;
+        if (seen.has(c.id.user)) return false;
+        seen.add(c.id.user);
+        return true;
+      })
+      .map((c) => ({
+        name: c.name || c.pushname || c.shortName || "",
+        number: c.id.user,
+        id: c.id._serialized,
+      }));
+  }
+
   async sendMessage(userId: string, to: string, body: string, media: { base64: string; mimetype: string; filename?: string } | null = null) {
     await this.ensureInitialized().catch(() => {});
 
