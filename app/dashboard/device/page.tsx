@@ -41,7 +41,7 @@ export default function DevicePage() {
 
   // Poll status & QR while connecting
   useEffect(() => {
-    if (!connecting) return;
+    if (status !== "connecting") return;
     pollRef.current = setInterval(() => {
       fetchStatus();
       fetchQR();
@@ -50,7 +50,7 @@ export default function DevicePage() {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [connecting, fetchStatus, fetchQR]);
+  }, [status, fetchStatus, fetchQR]);
 
   async function handleConnect() {
     setConnecting(true);
@@ -93,6 +93,12 @@ export default function DevicePage() {
             >
               Disconnect
             </button>
+          </div>
+        ) : status === "connecting" && !connecting ? (
+          <div className="space-y-5 py-8">
+            <Spinner />
+            <h2 className="text-lg font-semibold text-[#075E54]">Reconnecting...</h2>
+            <p className="text-sm text-zinc-500">Restoring previous WhatsApp session. This may take a moment.</p>
           </div>
         ) : connecting && qr ? (
           <div className="space-y-5">

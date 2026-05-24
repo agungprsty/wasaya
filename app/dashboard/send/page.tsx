@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, FormEvent, useRef } from "react";
+import { useState, FormEvent, useRef, useEffect } from "react";
+import { extractVariables, interpolate } from "@/lib/template-utils";
+
+interface Template {
+  id: string;
+  name: string;
+  body: string;
+}
 
 export default function SendPage() {
   const [to, setTo] = useState("");
@@ -9,6 +16,42 @@ export default function SendPage() {
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [variableValues, setVariableValues] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch("/api/templates")
+      .then((r) => r.json().catch(() => ({ templates: [] })))
+      .then((data) => setTemplates(data.templates || []));
+  }, []);
+
+  function handleSelectTemplate(t: Template) {
+    setSelectedTemplate(t);
+    const vars = extractVariables(t.body);
+    const initial: Record<string, string> = {};
+    vars.forEach((v) => { initial[v] = ""; });
+    setVariableValues(initial);
+    if (vars.length === 0) {
+      setBody(t.body);
+    } else {
+      setBody(t.body);
+    }
+  }
+
+  function clearTemplate() {
+    setSelectedTemplate(null);
+    setVariableValues({});
+  }
+
+  function handleVariableChange(key: string, value: string) {
+    const updated = { ...variableValues, [key]: value };
+    setVariableValues(updated);
+    if (selectedTemplate) {
+      setBody(interpolate(selectedTemplate.body, updated));
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -43,6 +86,8 @@ export default function SendPage() {
       setTo("");
       setBody("");
       setFile(null);
+      setSelectedTemplate(null);
+      setVariableValues({});
       if (fileRef.current) fileRef.current.value = "";
     } catch (err) {
       setStatus("error");
@@ -54,6 +99,8 @@ export default function SendPage() {
     setFile(null);
     if (fileRef.current) fileRef.current.value = "";
   }
+
+  const currentVariables = selectedTemplate ? extractVariables(selectedTemplate.body) : [];
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-10">
@@ -79,6 +126,57 @@ export default function SendPage() {
           <p className="mt-1 text-xs text-zinc-400">Include country code (e.g. +62 for Indonesia)</p>
         </div>
 
+        {/* Templates */}
+        {templates.length > 0 && (
+          <div className="rounded-xl border border-[#DCF8C6] bg-white p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[#075E54]">Templates</h2>
+              {selectedTemplate && (
+                <button type="button" onClick={clearTemplate} className="text-xs text-zinc-400 hover:text-red-500">
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {templates.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => handleSelectTemplate(t)}
+                  className={`rounded-lg border px-4 py-2 text-xs font-medium transition-colors ${
+                    selectedTemplate?.id === t.id
+                      ? "border-[#25D366] bg-[#DCF8C6] text-[#075E54]"
+                      : "border-[#DCF8C6] text-zinc-600 hover:border-[#25D366] hover:text-[#075E54]"
+                  }`}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Variable inputs */}
+        {currentVariables.length > 0 && (
+          <div className="rounded-xl border border-[#DCF8C6] bg-[#f0fdf4] p-5">
+            <h2 className="text-sm font-semibold text-[#075E54]">Template Variables</h2>
+            <div className="mt-3 space-y-3">
+              {currentVariables.map((v) => (
+                <div key={v}>
+                  <label className="block text-xs font-medium text-zinc-600 capitalize">{v}</label>
+                  <input
+                    type="text"
+                    value={variableValues[v] || ""}
+                    onChange={(e) => handleVariableChange(v, e.target.value)}
+                    className="mt-1 block w-full rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+                    placeholder={`Enter ${v}...`}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div>
           <label htmlFor="body" className="block text-sm font-medium text-zinc-700">
             Message
@@ -87,7 +185,13 @@ export default function SendPage() {
             id="body"
             rows={5}
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => {
+              setBody(e.target.value);
+              if (selectedTemplate) {
+                const unsetVars = extractVariables(e.target.value);
+                if (unsetVars.length === 0) setSelectedTemplate(null);
+              }
+            }}
             className="mt-1.5 block w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors focus:border-[#25D366] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366]/15 resize-y"
             placeholder="Type your message here..."
           />

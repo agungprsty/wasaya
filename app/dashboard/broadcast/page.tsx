@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
+import { extractVariables, interpolate } from "@/lib/template-utils";
 
 interface Contact {
   id: string;
@@ -22,6 +23,9 @@ export default function BroadcastPage() {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [results, setResults] = useState<{ to: string; status: string }[] | null>(null);
+
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [variableValues, setVariableValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
     Promise.all([
@@ -48,7 +52,25 @@ export default function BroadcastPage() {
   }
 
   function applyTemplate(t: Template) {
+    setSelectedTemplate(t);
+    const vars = extractVariables(t.body);
+    const initial: Record<string, string> = {};
+    vars.forEach((v) => { initial[v] = ""; });
+    setVariableValues(initial);
     setBody(t.body);
+  }
+
+  function clearTemplate() {
+    setSelectedTemplate(null);
+    setVariableValues({});
+  }
+
+  function handleVariableChange(key: string, value: string) {
+    const updated = { ...variableValues, [key]: value };
+    setVariableValues(updated);
+    if (selectedTemplate) {
+      setBody(interpolate(selectedTemplate.body, updated));
+    }
   }
 
   function parseManualNumbers(): string[] {
@@ -97,6 +119,8 @@ export default function BroadcastPage() {
         failed: results.filter((r) => r.status === "failed").length,
       }
     : null;
+
+  const currentVariables = selectedTemplate ? extractVariables(selectedTemplate.body) : [];
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10">
@@ -157,17 +181,49 @@ export default function BroadcastPage() {
         {/* Templates */}
         {templates.length > 0 && (
           <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
-            <h2 className="text-sm font-semibold text-[#075E54]">Use a template</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[#075E54]">Use a template</h2>
+              {selectedTemplate && (
+                <button type="button" onClick={clearTemplate} className="text-xs text-zinc-400 hover:text-red-500">
+                  Clear
+                </button>
+              )}
+            </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {templates.map((t) => (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => applyTemplate(t)}
-                  className="rounded-lg border border-[#DCF8C6] px-4 py-2 text-xs font-medium text-zinc-600 transition-colors hover:border-[#25D366] hover:text-[#075E54]"
+                  className={`rounded-lg border px-4 py-2 text-xs font-medium transition-colors ${
+                    selectedTemplate?.id === t.id
+                      ? "border-[#25D366] bg-[#DCF8C6] text-[#075E54]"
+                      : "border-[#DCF8C6] text-zinc-600 hover:border-[#25D366] hover:text-[#075E54]"
+                  }`}
                 >
                   {t.name}
                 </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Variable inputs */}
+        {currentVariables.length > 0 && (
+          <div className="rounded-xl border border-[#DCF8C6] bg-[#f0fdf4] p-6">
+            <h2 className="text-sm font-semibold text-[#075E54]">Template Variables</h2>
+            <div className="mt-3 space-y-3">
+              {currentVariables.map((v) => (
+                <div key={v}>
+                  <label className="block text-xs font-medium text-zinc-600 capitalize">{v}</label>
+                  <input
+                    type="text"
+                    value={variableValues[v] || ""}
+                    onChange={(e) => handleVariableChange(v, e.target.value)}
+                    className="mt-1 block w-full rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+                    placeholder={`Enter ${v}...`}
+                  />
+                </div>
               ))}
             </div>
           </div>
@@ -180,7 +236,13 @@ export default function BroadcastPage() {
             required
             rows={5}
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => {
+              setBody(e.target.value);
+              if (selectedTemplate) {
+                const unsetVars = extractVariables(e.target.value);
+                if (unsetVars.length === 0) setSelectedTemplate(null);
+              }
+            }}
             className="mt-3 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15 resize-y"
             placeholder="Type your message here..."
           />
