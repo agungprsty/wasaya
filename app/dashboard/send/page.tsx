@@ -35,6 +35,9 @@ export default function SendPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
 
+  const [scheduleMode, setScheduleMode] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState("");
+
   useEffect(() => {
     fetch("/api/templates")
       .then((r) => r.json().catch(() => ({ templates: [] })))
@@ -42,6 +45,16 @@ export default function SendPage() {
     fetch("/api/contacts?all=true")
       .then((r) => r.json().catch(() => ({ contacts: [] })))
       .then((data) => setContacts(data.contacts || []));
+  }, []);
+
+  // Auto-trigger scheduled message processing
+  useEffect(() => {
+    const check = () => {
+      fetch("/api/cron/process-scheduled", { method: "POST" }).catch(() => {});
+    };
+    check();
+    const interval = setInterval(check, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -139,6 +152,38 @@ export default function SendPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setStatus("sending");
+
+    if (scheduleMode) {
+      try {
+        const recipients = selectedContact
+          ? [{ to: selectedContact.phone, name: selectedContact.name }]
+          : [{ to }];
+
+        const res = await fetch("/api/scheduler", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recipients, body, scheduledAt: new Date(scheduledAt + ":00").toISOString() }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to schedule");
+
+        setStatus("success");
+        setMessage(`Message scheduled for ${new Date(scheduledAt + ":00").toLocaleString("id-ID")}`);
+        setTo("");
+        setBody("");
+        setFile(null);
+        setSelectedTemplate(null);
+        setSelectedContact(null);
+        setVariableValues({});
+        setScheduleMode(false);
+        setScheduledAt("");
+        if (fileRef.current) fileRef.current.value = "";
+      } catch (err) {
+        setStatus("error");
+        setMessage(err instanceof Error ? err.message : "Failed to schedule");
+      }
+      return;
+    }
 
     const payload: Record<string, any> = { to, body };
     if (file) {
@@ -435,6 +480,46 @@ export default function SendPage() {
           </div>
         </div>
 
+        {/* Schedule toggle */}
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <button
+              type="button"
+              onClick={() => { setScheduleMode(false); setScheduledAt(""); }}
+              className={`relative h-7 rounded-full px-3 text-xs font-medium transition-colors ${
+                !scheduleMode ? "bg-[#25D366] text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+              }`}
+            >
+              Send now
+            </button>
+            <button
+              type="button"
+              onClick={() => setScheduleMode(true)}
+              className={`relative h-7 rounded-full px-3 text-xs font-medium transition-colors ${
+                scheduleMode ? "bg-[#075E54] text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+              }`}
+            >
+              <svg className="-ml-0.5 mr-1 inline h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Schedule
+            </button>
+          </label>
+        </div>
+
+        {scheduleMode && (
+          <div>
+            <label className="block text-xs font-medium text-zinc-600 mb-1">Send at</label>
+            <input
+              type="datetime-local"
+              required
+              value={scheduledAt}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              className="block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+            />
+          </div>
+        )}
+
         {/* Status Messages */}
         {status === "success" && (
           <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -466,14 +551,20 @@ export default function SendPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Sending...
+                {scheduleMode ? "Scheduling..." : "Sending..."}
               </>
             ) : (
               <>
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                </svg>
-                Send Message
+                {scheduleMode ? (
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                  </svg>
+                )}
+                {scheduleMode ? "Schedule Message" : "Send Message"}
               </>
             )}
           </button>

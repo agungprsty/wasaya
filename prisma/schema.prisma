@@ -22,6 +22,7 @@ model User {
   settings       Settings?
   whatsAppSession WhatsAppSession?
   templates      MessageTemplate[]
+  scheduledMessages ScheduledMessage[]
 }
 
 model ApiKey {
@@ -89,6 +90,19 @@ model MessageTemplate {
   body      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ScheduledMessage {
+  id          String   @id @default(uuid())
+  userId      String
+  recipients  Json     // [{ "to": "+628...", "name": "..." }]
+  body        String
+  scheduledAt DateTime
+  status      String   @default("pending") // pending, processing, sent, failed, cancelled
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
