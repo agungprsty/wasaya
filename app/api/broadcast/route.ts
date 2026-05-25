@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/api-auth";
 import { whatsappManager } from "@/lib/whatsapp";
 import crypto from "crypto";
 import { rateLimit } from "@/lib/rate-limit";
+import { validatePhone } from "@/lib/phone-utils";
 
 export async function POST(request: NextRequest) {
   const { error, user } = await requireUser(request);
@@ -22,6 +23,13 @@ export async function POST(request: NextRequest) {
 
   if (!messages.length) {
     return NextResponse.json({ error: "Recipients and message body are required" }, { status: 400 });
+  }
+
+  for (const msg of messages) {
+    const phoneCheck = validatePhone(msg.to);
+    if (!phoneCheck.valid) {
+      return NextResponse.json({ error: `Invalid phone: ${msg.to} - ${phoneCheck.error}` }, { status: 400 });
+    }
   }
 
   const results: { to: string; status: string; error?: string }[] = [];

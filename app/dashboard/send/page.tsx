@@ -273,7 +273,7 @@ export default function SendPage() {
               </button>
             )}
           </div>
-          <p className="mt-1 text-xs text-zinc-400">Include country code (e.g. +62 for Indonesia)</p>
+          <p className="mt-1 text-xs text-zinc-400">Include country code (e.g. +62 for Indonesia). Must be 7-15 digits.</p>
 
           {showDropdown && contacts.length > 0 && (
             <div className="absolute z-10 mt-1 w-full rounded-xl border border-zinc-200 bg-white shadow-lg">

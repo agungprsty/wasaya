@@ -15,6 +15,7 @@ export default function TemplatesPage() {
   const [name, setName] = useState("");
   const [body, setBody] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
 
   function fetchTemplates() {
     setLoading(true);
@@ -26,20 +27,35 @@ export default function TemplatesPage() {
 
   useEffect(() => { fetchTemplates(); }, []);
 
+  function resetForm() {
+    setName("");
+    setBody("");
+    setEditId(null);
+    setShowForm(false);
+  }
+
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     if (!name.trim() || !body.trim()) return;
-    const res = await fetch("/api/templates", {
-      method: "POST",
+
+    const method = editId ? "PUT" : "POST";
+    const url = editId ? `/api/templates?id=${editId}` : "/api/templates";
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: name.trim(), body: body.trim() }),
     });
     if (res.ok) {
-      setName("");
-      setBody("");
-      setShowForm(false);
+      resetForm();
       fetchTemplates();
     }
+  }
+
+  function handleEdit(t: Template) {
+    setEditId(t.id);
+    setName(t.name);
+    setBody(t.body);
+    setShowForm(true);
   }
 
   async function handleDelete(id: string) {
@@ -59,7 +75,7 @@ export default function TemplatesPage() {
           <p className="mt-1 text-sm text-zinc-500">Save reusable message templates for broadcasts.</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => { resetForm(); setShowForm(!showForm); }}
           className="flex h-10 items-center gap-2 rounded-xl bg-[#25D366] px-5 text-sm font-semibold text-white hover:bg-[#1DAF5A]"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -99,7 +115,7 @@ export default function TemplatesPage() {
               <button type="submit" className="rounded-lg bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1DAF5A]">
                 Save
               </button>
-              <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-zinc-200 px-5 py-2.5 text-sm text-zinc-600 hover:bg-zinc-50">
+              <button type="button" onClick={resetForm} className="rounded-lg border border-zinc-200 px-5 py-2.5 text-sm text-zinc-600 hover:bg-zinc-50">
                 Cancel
               </button>
             </div>
@@ -125,6 +141,9 @@ export default function TemplatesPage() {
                   <div className="flex items-center gap-2 ml-4">
                     <button onClick={() => copyBody(t.body)} className="text-xs text-zinc-400 hover:text-[#25D366]" title="Copy body">
                       Copy
+                    </button>
+                    <button onClick={() => handleEdit(t)} className="text-xs text-zinc-400 hover:text-[#25D366]" title="Edit">
+                      Edit
                     </button>
                     <button onClick={() => handleDelete(t.id)} className="text-xs text-zinc-400 hover:text-red-500" title="Delete">
                       Delete

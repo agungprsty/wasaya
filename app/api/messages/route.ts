@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/api-auth";
 import { whatsappManager } from "@/lib/whatsapp";
 import { rateLimit } from "@/lib/rate-limit";
+import { validatePhone } from "@/lib/phone-utils";
 
 export async function GET(request: NextRequest) {
   const { error, user } = await requireUser(request);
@@ -40,6 +41,11 @@ export async function POST(request: NextRequest) {
   const { to, body, media } = await request.json();
   if (!to) {
     return NextResponse.json({ error: "Recipient number is required" }, { status: 400 });
+  }
+
+  const phoneCheck = validatePhone(to);
+  if (!phoneCheck.valid) {
+    return NextResponse.json({ error: phoneCheck.error }, { status: 400 });
   }
 
   try {

@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import path from "path";
 import { deliverWebhook } from "@/lib/webhook";
+import { processChatbot } from "@/lib/chatbot";
 
 const SESSION_DIR = path.join(process.cwd(), "wa_sessions");
 
@@ -143,6 +144,13 @@ class WhatsAppManager {
           status: "received",
         },
       });
+
+      const reply = await processChatbot(userId, from, body).catch(() => null);
+      if (reply) {
+        this.sendMessage(userId, from, reply).catch(() => {});
+        return;
+      }
+
       deliverWebhook(userId, "message.received", {
         id: record.id,
         from,
@@ -233,7 +241,7 @@ class WhatsAppManager {
     const client = this.clients.get(userId);
     if (!client) throw new Error("WhatsApp not connected");
 
-    const chatId = to.includes("@c.us") ? to : `${to}@c.us`;
+    const chatId = to.includes("@") ? to : `${to}@c.us`;
 
     let sent;
     if (media) {
@@ -272,7 +280,7 @@ class WhatsAppManager {
 
     for (const msg of pending) {
       try {
-        const chatId = msg.to.includes("@c.us") ? msg.to : `${msg.to}@c.us`;
+        const chatId = msg.to.includes("@") ? msg.to : `${msg.to}@c.us`;
         await client.sendMessage(chatId, msg.body);
         await this.db.whatsAppMessage.update({
           where: { id: msg.id },
