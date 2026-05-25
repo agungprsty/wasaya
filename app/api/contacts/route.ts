@@ -49,6 +49,32 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ contact }, { status: 201 });
 }
 
+export async function PUT(request: NextRequest) {
+  const { error, user } = await requireUser(request);
+  if (error) return error;
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "Contact ID required" }, { status: 400 });
+
+  const { name, phone } = await request.json();
+  if (!name || !phone) {
+    return NextResponse.json({ error: "Name and phone are required" }, { status: 400 });
+  }
+
+  const contact = await prisma.contact.updateMany({
+    where: { id, userId: user!.userId },
+    data: { name, phone },
+  });
+
+  if (contact.count === 0) {
+    return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+  }
+
+  const updated = await prisma.contact.findUnique({ where: { id } });
+  return NextResponse.json({ contact: updated });
+}
+
 export async function DELETE(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;

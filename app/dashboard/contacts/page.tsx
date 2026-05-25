@@ -25,6 +25,9 @@ export default function ContactsPage() {
   const [phone, setPhone] = useState("");
   const [showForm, setShowForm] = useState(false);
 
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [showImport, setShowImport] = useState(false);
   const [waContacts, setWaContacts] = useState<WaContact[]>([]);
   const [waLoading, setWaLoading] = useState(false);
@@ -62,6 +65,26 @@ export default function ContactsPage() {
       setName("");
       setPhone("");
       setShowForm(false);
+      fetchContacts();
+    }
+  }
+
+  async function handleEdit(c: Contact) {
+    setEditingContact(c);
+    setEditName(c.name);
+    setEditPhone(c.phone);
+  }
+
+  async function handleUpdate(e: FormEvent) {
+    e.preventDefault();
+    if (!editingContact) return;
+    const res = await fetch(`/api/contacts?id=${editingContact.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: editName, phone: editPhone }),
+    });
+    if (res.ok) {
+      setEditingContact(null);
       fetchContacts();
     }
   }
@@ -174,7 +197,7 @@ export default function ContactsPage() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleAdd} className="mb-8 rounded-xl border border-[#DCF8C6] bg-white p-6">
+        <form onSubmit={handleAdd} className="mb-4 rounded-xl border border-[#DCF8C6] bg-white p-6">
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <label className="block text-sm font-medium text-zinc-700">Name</label>
@@ -217,6 +240,49 @@ export default function ContactsPage() {
         </form>
       )}
 
+      {editingContact && (
+        <form onSubmit={handleUpdate} className="mb-8 rounded-xl border border-[#DCF8C6] bg-white p-6">
+          <h3 className="mb-4 text-sm font-semibold text-[#075E54]">Edit Contact</h3>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700">Name</label>
+              <input
+                type="text"
+                required
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700">Phone</label>
+              <input
+                type="text"
+                required
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <button
+                type="submit"
+                className="flex h-10 items-center rounded-lg bg-[#25D366] px-5 text-sm font-semibold text-white hover:bg-[#1DAF5A]"
+              >
+                Update
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingContact(null)}
+                className="flex h-10 items-center rounded-lg border border-zinc-200 px-5 text-sm text-zinc-600 hover:bg-zinc-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+
       <div className="overflow-hidden rounded-xl border border-[#DCF8C6] bg-white">
         {loading ? (
           <div className="p-8 text-center text-sm text-zinc-400">Loading...</div>
@@ -236,12 +302,20 @@ export default function ContactsPage() {
                       <p className="text-sm text-zinc-500">{c.phone}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDelete(c.id)}
-                    className="text-sm text-zinc-400 hover:text-red-500"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleEdit(c)}
+                      className="text-sm text-zinc-400 hover:text-[#25D366]"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      className="text-sm text-zinc-400 hover:text-red-500"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

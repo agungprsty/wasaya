@@ -13,6 +13,8 @@ export default function SettingsPage() {
   const [webhookSecret, setWebhookSecret] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -93,7 +95,31 @@ export default function SettingsPage() {
           >
             {saving ? "Saving..." : "Save Changes"}
           </button>
+          <button
+            type="button"
+            disabled={testing || !webhookUrl}
+            onClick={async () => {
+              setTesting(true);
+              setTestResult(null);
+              const res = await fetch("/api/webhook-test", { method: "POST" });
+              const data = await res.json().catch(() => ({}));
+              setTesting(false);
+              setTestResult({
+                ok: res.ok,
+                message: res.ok ? "Webhook test sent successfully!" : data.error || "Test failed",
+              });
+              setTimeout(() => setTestResult(null), 5000);
+            }}
+            className="flex h-10 items-center rounded-xl border border-[#25D366] px-6 text-sm font-semibold text-[#25D366] transition-colors hover:bg-[#25D366]/5 disabled:opacity-60"
+          >
+            {testing ? "Testing..." : "Test Webhook"}
+          </button>
           {saved && <span className="text-sm text-green-600">Settings saved.</span>}
+          {testResult && (
+            <span className={`text-sm ${testResult.ok ? "text-green-600" : "text-red-500"}`}>
+              {testResult.message}
+            </span>
+          )}
         </div>
       </form>
     </div>

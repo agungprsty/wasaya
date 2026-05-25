@@ -2,6 +2,7 @@ import { Client, LocalAuth, MessageMedia } from "whatsapp-web.js";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import path from "path";
+import { deliverWebhook } from "@/lib/webhook";
 
 const SESSION_DIR = path.join(process.cwd(), "wa_sessions");
 
@@ -97,6 +98,28 @@ class WhatsAppManager {
       this.retryPendingMessages(userId).catch(() => {});
     });
 
+    waClient.on("message_ack", async (msg, ack) => {
+      const statusMap: Record<number, string> = {
+        1: "sent",
+        2: "delivered",
+        3: "delivered",
+        4: "failed",
+      };
+      const status = statusMap[ack] || "sent";
+      const serialized = msg.id?._serialized;
+      if (serialized) {
+        await this.db.whatsAppMessage.updateMany({
+          where: { messageId: serialized, userId },
+          data: { status },
+        }).catch(() => {});
+        deliverWebhook(userId, `message.${status}`, {
+          messageId: serialized,
+          status,
+          timestamp: new Date().toISOString(),
+        }).catch(() => {});
+      }
+    });
+
     waClient.on("disconnected", async () => {
       await this.db.whatsAppSession.upsert({
         where: { userId },
@@ -110,7 +133,7 @@ class WhatsAppManager {
       const from = msg.from || "";
       const body = msg.body || "";
       if (!from || !body) return;
-      await this.db.whatsAppMessage.create({
+      const record = await this.db.whatsAppMessage.create({
         data: {
           userId,
           to: from,
@@ -120,6 +143,12 @@ class WhatsAppManager {
           status: "received",
         },
       });
+      deliverWebhook(userId, "message.received", {
+        id: record.id,
+        from,
+        body,
+        timestamp: record.timestamp.toISOString(),
+      }).catch(() => {});
     });
 
     this.clients.set(userId, waClient);

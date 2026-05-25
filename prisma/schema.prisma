@@ -109,6 +109,7 @@ model ScheduledMessage {
 
 model WebhookEvent {
   id          String    @id @default(uuid())
+  userId      String
   eventType   String
   payload     Json
   processed   Boolean   @default(false)
