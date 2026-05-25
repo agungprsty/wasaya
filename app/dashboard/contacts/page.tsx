@@ -175,6 +175,15 @@ export default function ContactsPage() {
           <p className="mt-1 text-sm text-zinc-500">Manage your contact list.</p>
         </div>
         <div className="flex gap-2">
+          <a
+            href="/api/contacts/export"
+            className="flex h-10 items-center gap-2 rounded-xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-600 transition-colors hover:bg-zinc-50"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 12l4.5 4.5m0 0l4.5-4.5M12 16.5V3" />
+            </svg>
+            Export CSV
+          </a>
           <button
             onClick={openImport}
             className="flex h-10 items-center gap-2 rounded-xl border border-[#25D366] px-5 text-sm font-semibold text-[#25D366] transition-colors hover:bg-[#25D366]/5"

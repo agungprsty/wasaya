@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/api-auth";
 import { whatsappManager } from "@/lib/whatsapp";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
   const { error, user } = await requireUser(request);
@@ -32,6 +33,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
+
+  const rl = rateLimit(user!.userId, "messages", 30, 60000);
+  if (rl) return rl;
 
   const { to, body, media } = await request.json();
   if (!to) {
