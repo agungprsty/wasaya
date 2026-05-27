@@ -2,6 +2,9 @@
 
 import { useState, FormEvent, useRef, useEffect } from "react";
 import { extractVariables, interpolate } from "@/lib/template-utils";
+import dynamic from "next/dynamic";
+
+const LocationPicker = dynamic(() => import("@/app/components/LocationPicker"), { ssr: false });
 
 interface Template {
   id: string;
@@ -21,7 +24,8 @@ export default function SendPage() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<HTMLInputElement>(null);
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -38,6 +42,15 @@ export default function SendPage() {
   const [scheduleMode, setScheduleMode] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
 
+  const [waGroups, setWaGroups] = useState<{ id: string; name: string; participants: number }[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
+  const [showGroupDropdown, setShowGroupDropdown] = useState(false);
+
+  const [sendLocation, setSendLocation] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number; name?: string } | null>(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [mediaError, setMediaError] = useState("");
+
   useEffect(() => {
     fetch("/api/templates")
       .then((r) => r.json().catch(() => ({ templates: [] })))
@@ -45,6 +58,9 @@ export default function SendPage() {
     fetch("/api/contacts?all=true")
       .then((r) => r.json().catch(() => ({ contacts: [] })))
       .then((data) => setContacts(data.contacts || []));
+    fetch("/api/whatsapp/groups")
+      .then((r) => r.json().catch(() => ({ groups: [] })))
+      .then((data) => setWaGroups(data.groups || []));
   }, []);
 
   // Auto-trigger scheduled message processing
@@ -177,7 +193,6 @@ export default function SendPage() {
         setVariableValues({});
         setScheduleMode(false);
         setScheduledAt("");
-        if (fileRef.current) fileRef.current.value = "";
       } catch (err) {
         setStatus("error");
         setMessage(err instanceof Error ? err.message : "Failed to schedule");
@@ -185,7 +200,11 @@ export default function SendPage() {
       return;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload: Record<string, any> = { to, body };
+    if (sendLocation && selectedLocation) {
+      payload.location = { latitude: selectedLocation.lat, longitude: selectedLocation.lng };
+    }
     if (file) {
       const base64 = await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -217,7 +236,11 @@ export default function SendPage() {
       setSelectedTemplate(null);
       setSelectedContact(null);
       setVariableValues({});
-      if (fileRef.current) fileRef.current.value = "";
+      setSendLocation(false);
+      setSelectedLocation(null);
+      setSelectedGroup("");
+      if (photoRef.current) photoRef.current.value = "";
+      if (docRef.current) docRef.current.value = "";
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Failed to send");
@@ -226,7 +249,47 @@ export default function SendPage() {
 
   function removeFile() {
     setFile(null);
-    if (fileRef.current) fileRef.current.value = "";
+    setMediaError("");
+    if (photoRef.current) photoRef.current.value = "";
+    if (docRef.current) docRef.current.value = "";
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>, type: "photo" | "document") {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    setMediaError("");
+
+    if (type === "photo") {
+      if (!selected.type.startsWith("image/")) {
+        setMediaError("Only image files (JPEG, PNG, etc.) are allowed for photos.");
+        return;
+      }
+      if (selected.size > 16 * 1024 * 1024) {
+        setMediaError("Photo must be smaller than 16 MB.");
+        return;
+      }
+    } else {
+      const allowed = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/plain",
+      ];
+      if (!allowed.includes(selected.type) && !selected.type.startsWith("application/vnd.openxmlformats-officedocument")) {
+        setMediaError("Only PDF, DOCX, XLSX, or TXT files are allowed.");
+        return;
+      }
+      if (selected.size > 100 * 1024 * 1024) {
+        setMediaError("Document must be smaller than 100 MB.");
+        return;
+      }
+    }
+
+    // Clear the other input if switching types
+    if (type === "photo" && docRef.current) docRef.current.value = "";
+    if (type === "document" && photoRef.current) photoRef.current.value = "";
+
+    setFile(selected);
   }
 
   const currentVariables = selectedTemplate ? extractVariables(selectedTemplate.body) : [];
@@ -254,14 +317,19 @@ export default function SendPage() {
               id="to"
               type="text"
               required
-              value={to}
-              onChange={(e) => handleToChange(e.target.value)}
+              value={selectedGroup ? waGroups.find((g) => g.id === selectedGroup)?.name || to : to}
+              readOnly={!!selectedGroup}
+              onChange={(e) => { if (!selectedGroup) handleToChange(e.target.value); }}
               onFocus={handleToFocus}
               onKeyDown={handleKeyDown}
-              className="mt-1.5 block w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 pl-10 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors focus:border-[#25D366] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
-              placeholder="+628123456789 or search contact..."
+              className={`mt-1.5 block w-full rounded-xl border px-4 py-3 pl-10 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#25D366]/15 ${
+                selectedGroup
+                  ? "border-zinc-100 bg-zinc-50 cursor-not-allowed"
+                  : "border-zinc-200 bg-zinc-50/50 focus:border-[#25D366] focus:bg-white"
+              }`}
+              placeholder={selectedGroup ? "" : "+628123456789 or search contact..."}
             />
-            {to && (
+            {to && !selectedGroup && (
               <button
                 type="button"
                 onClick={() => { setTo(""); setSearch(""); setSelectedContact(null); }}
@@ -314,6 +382,59 @@ export default function SendPage() {
             </div>
           )}
         </div>
+
+        {/* WhatsApp Group picker */}
+        {waGroups.length > 0 && (
+          <div className="relative">
+            <label className="block text-sm font-medium text-zinc-700">Send to WhatsApp Group</label>
+            <button
+              type="button"
+              onClick={() => setShowGroupDropdown(!showGroupDropdown)}
+              className="mt-1.5 flex w-full items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-sm text-zinc-900 transition-colors hover:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+            >
+              <span className={selectedGroup ? "" : "text-zinc-400"}>
+                {selectedGroup
+                  ? waGroups.find((g) => g.id === selectedGroup)?.name
+                  : "Select a WhatsApp group..."}
+              </span>
+              <svg className={`h-4 w-4 text-zinc-400 transition-transform ${showGroupDropdown ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+            {showGroupDropdown && (
+              <div className="absolute z-10 mt-1 w-full rounded-xl border border-zinc-200 bg-white shadow-lg">
+                <div className="max-h-56 overflow-y-auto py-1">
+                  {waGroups.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedGroup(g.id);
+                        setTo(g.id);
+                        setShowGroupDropdown(false);
+                      }}
+                      className={`flex w-full items-center justify-between px-4 py-2.5 text-sm transition-colors hover:bg-[#DCF8C6]/40 ${
+                        selectedGroup === g.id ? "bg-[#DCF8C6]/40 text-[#075E54]" : "text-zinc-700"
+                      }`}
+                    >
+                      <span>{g.name}</span>
+                      <span className="text-xs text-zinc-400">{g.participants} members</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {selectedGroup && (
+              <button
+                type="button"
+                onClick={() => { setSelectedGroup(""); setTo(""); }}
+                className="mt-1 text-xs text-zinc-400 hover:text-red-500"
+              >
+                Clear group selection
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Templates */}
         {templates.length > 0 && (
@@ -441,48 +562,126 @@ export default function SendPage() {
           />
         </div>
 
-        {/* Media */}
-        <div>
-          <label className="block text-sm font-medium text-zinc-700">Media (optional)</label>
-          <div className="mt-1.5">
-            {file ? (
-              <div className="flex items-center gap-3 rounded-xl border border-[#DCF8C6] bg-[#f0fdf4] px-4 py-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#DCF8C6]">
-                  <svg className="h-5 w-5 text-[#075E54]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
-                  </svg>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-zinc-900">{file.name}</p>
-                  <p className="text-xs text-zinc-400">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
-                </div>
-                <button type="button" onClick={removeFile} className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-colors">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                  </svg>
-                </button>
-              </div>
-            ) : (
-              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-sm text-zinc-600 transition-colors hover:border-[#25D366] hover:bg-[#DCF8C6]/20">
-                <svg className="h-5 w-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                </svg>
-                Attach image, PDF, or document
-                <input
-                  ref={fileRef}
-                  type="file"
-                  className="hidden"
-                  accept="image/*,application/pdf,application/vnd.openxmlformats-officedocument.*,text/plain"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                />
-              </label>
-            )}
-          </div>
-        </div>
+        {/* Attachments card */}
+        <div className="rounded-xl border border-[#DCF8C6] bg-white p-5">
+          <h2 className="text-sm font-semibold text-[#075E54] mb-4">Attachments</h2>
 
-        {/* Schedule toggle */}
-        <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 cursor-pointer">
+          <div className="flex flex-wrap gap-2">
+            {/* Photo */}
+            <button
+              type="button"
+              onClick={() => photoRef.current?.click()}
+              className={`flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-medium transition-colors ${
+                file && file.type.startsWith("image/")
+                  ? "border-[#25D366] bg-[#DCF8C6] text-[#075E54]"
+                  : "border-zinc-200 text-zinc-600 hover:border-[#25D366]"
+              }`}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+              </svg>
+              Photo
+            </button>
+            <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileSelect(e, "photo")} />
+
+            {/* Document */}
+            <button
+              type="button"
+              onClick={() => docRef.current?.click()}
+              className={`flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-medium transition-colors ${
+                file && !file.type.startsWith("image/")
+                  ? "border-[#25D366] bg-[#DCF8C6] text-[#075E54]"
+                  : "border-zinc-200 text-zinc-600 hover:border-[#25D366]"
+              }`}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+              </svg>
+              Document
+            </button>
+            <input ref={docRef} type="file" accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain" className="hidden" onChange={(e) => handleFileSelect(e, "document")} />
+
+            {/* Location */}
+            <button
+              type="button"
+              onClick={() => {
+                if (sendLocation) {
+                  setSendLocation(false);
+                  setSelectedLocation(null);
+                } else {
+                  setShowLocationModal(true);
+                }
+              }}
+              className={`flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-medium transition-colors ${
+                sendLocation
+                  ? "border-[#25D366] bg-[#DCF8C6] text-[#075E54]"
+                  : "border-zinc-200 text-zinc-600 hover:border-[#25D366]"
+              }`}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+              </svg>
+              Location
+            </button>
+          </div>
+
+          {/* Validation error */}
+          {mediaError && (
+            <p className="mt-2 flex items-center gap-1 text-xs text-red-500">
+              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+              {mediaError}
+            </p>
+          )}
+
+          {/* Selected file preview */}
+          {file && (
+            <div className="mt-3 flex items-center gap-3 rounded-lg border border-[#DCF8C6] bg-[#f0fdf4] px-3.5 py-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#DCF8C6]">
+                {file.type.startsWith("image/") ? (
+                  <img src={URL.createObjectURL(file)} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <svg className="h-5 w-5 text-[#075E54]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                  </svg>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-zinc-900">{file.name}</p>
+                <p className="text-xs text-zinc-400">
+                  {(file.size / 1024 / 1024).toFixed(1)} MB &middot; {file.type.startsWith("image/") ? "Photo" : "Document"}
+                </p>
+              </div>
+              <button type="button" onClick={removeFile} className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-colors">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* Selected location preview */}
+          {sendLocation && selectedLocation && (
+            <div className="mt-3 flex items-center justify-between rounded-lg border border-[#DCF8C6] bg-[#f0fdf4] px-3.5 py-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <svg className="h-4 w-4 shrink-0 text-[#25D366]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                </svg>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-[#075E54]">{selectedLocation.name || "Location selected"}</p>
+                  <p className="text-xs text-zinc-400">{selectedLocation.lat.toFixed(4)}, {selectedLocation.lng.toFixed(4)}</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setShowLocationModal(true)} className="shrink-0 text-xs text-[#25D366] hover:text-[#1DAF5A]">Change</button>
+            </div>
+          )}
+
+          {/* Divider + Schedule row */}
+          <div className="mt-4 flex items-center gap-4 border-t border-zinc-100 pt-4">
+            <span className="text-xs font-medium text-zinc-500">Schedule:</span>
             <button
               type="button"
               onClick={() => { setScheduleMode(false); setScheduledAt(""); }}
@@ -504,20 +703,31 @@ export default function SendPage() {
               </svg>
               Schedule
             </button>
-          </label>
+          </div>
+
+          {scheduleMode && (
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-zinc-600 mb-1">Send at</label>
+              <input
+                type="datetime-local"
+                required
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+              />
+            </div>
+          )}
         </div>
 
-        {scheduleMode && (
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 mb-1">Send at</label>
-            <input
-              type="datetime-local"
-              required
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className="block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
-            />
-          </div>
+        {showLocationModal && (
+          <LocationPicker
+            onSelect={(lat, lng, name) => {
+              setSelectedLocation({ lat, lng, name });
+              setSendLocation(true);
+              setShowLocationModal(false);
+            }}
+            onClose={() => setShowLocationModal(false)}
+          />
         )}
 
         {/* Status Messages */}

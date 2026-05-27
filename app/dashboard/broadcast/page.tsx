@@ -39,6 +39,10 @@ export default function BroadcastPage() {
   const [scheduleMode, setScheduleMode] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
 
+  // Fetch WhatsApp groups for group sending
+  const [waGroups, setWaGroups] = useState<{ id: string; name: string; participants: number }[]>([]);
+  const [selectedWaGroup, setSelectedWaGroup] = useState("");
+
   const progressRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   useEffect(() => {
@@ -46,10 +50,12 @@ export default function BroadcastPage() {
       fetch("/api/contacts?all=true").then((r) => r.json().catch(() => ({ contacts: [] }))),
       fetch("/api/templates").then((r) => r.json().catch(() => ({ templates: [] }))),
       fetch("/api/groups").then((r) => r.json().catch(() => ({ groups: [] }))),
-    ]).then(([c, t, g]) => {
+      fetch("/api/whatsapp/groups").then((r) => r.json().catch(() => ({ groups: [] }))),
+    ]).then(([c, t, g, wg]) => {
       setContacts(c.contacts || []);
       setTemplates(t.templates || []);
       setGroups(g.groups || []);
+      setWaGroups(wg.groups || []);
     });
   }, []);
 
@@ -142,6 +148,11 @@ export default function BroadcastPage() {
       if (!contactPhones.has(to)) msgs.push({ to, body });
     }
 
+    // WhatsApp Group
+    if (selectedWaGroup) {
+      msgs.push({ to: selectedWaGroup, body });
+    }
+
     return msgs;
   }
 
@@ -176,7 +187,7 @@ export default function BroadcastPage() {
         setVariableValues({});
         setScheduleMode(false);
         setScheduledAt("");
-      } catch (err) {
+      } catch {
         setResults([]);
       } finally {
         setSending(false);
@@ -243,23 +254,26 @@ export default function BroadcastPage() {
               <h2 className="text-sm font-semibold text-[#075E54]">Contacts</h2>
               <div className="flex items-center gap-2">
                 {groups.length > 0 && (
-                  <select
-                    value={selectedGroup}
-                    onChange={(e) => {
-                      const gid = e.target.value;
-                      setSelectedGroup(gid);
-                      if (gid) {
-                        const g = groups.find((gr) => gr.id === gid);
-                        if (g) setSelectedContacts(g.contacts.map((cg) => cg.contact.id));
-                      }
-                    }}
-                    className="rounded-lg border border-zinc-200 px-2 py-1.5 text-xs text-zinc-600 focus:border-[#25D366] focus:outline-none"
-                  >
-                    <option value="">All contacts</option>
-                    {groups.map((g) => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
+                  <>
+                    <label className="text-xs text-zinc-500">Contact group:</label>
+                    <select
+                      value={selectedGroup}
+                      onChange={(e) => {
+                        const gid = e.target.value;
+                        setSelectedGroup(gid);
+                        if (gid) {
+                          const g = groups.find((gr) => gr.id === gid);
+                          if (g) setSelectedContacts(g.contacts.map((cg) => cg.contact.id));
+                        }
+                      }}
+                      className="rounded-lg border border-zinc-200 px-2 py-1.5 text-xs text-zinc-600 focus:border-[#25D366] focus:outline-none"
+                    >
+                      <option value="">All contacts</option>
+                      {groups.map((g) => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                  </>
                 )}
                 {contacts.length > 0 && (
                   <button type="button" onClick={selectAll} className="text-xs text-[#075E54] hover:text-[#25D366]">
@@ -293,6 +307,27 @@ export default function BroadcastPage() {
             )}
             <p className="mt-2 text-xs text-zinc-400">{selectedContacts.length} selected</p>
           </div>
+
+          {waGroups.length > 0 && (
+            <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
+              <h2 className="text-sm font-semibold text-[#075E54]">Send to WhatsApp Group</h2>
+              <select
+                value={selectedWaGroup}
+                onChange={(e) => setSelectedWaGroup(e.target.value)}
+                className="mt-3 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+              >
+                <option value="">Select a group...</option>
+                {waGroups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name} ({g.participants} members)</option>
+                ))}
+              </select>
+              {selectedWaGroup && (
+                <p className="mt-1.5 text-xs text-zinc-400">
+                  Message will be sent to the WhatsApp group chat
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
             <h2 className="text-sm font-semibold text-[#075E54]">Or enter numbers manually</h2>

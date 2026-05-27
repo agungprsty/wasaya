@@ -38,18 +38,22 @@ export async function POST(request: NextRequest) {
   const rl = rateLimit(user!.userId, "messages", 30, 60000);
   if (rl) return rl;
 
-  const { to, body, media } = await request.json();
-  if (!to) {
+  const { to, body, media, deviceId, location } = await request.json();
+  if (!to && !location) {
     return NextResponse.json({ error: "Recipient number is required" }, { status: 400 });
   }
 
-  const phoneCheck = validatePhone(to);
-  if (!phoneCheck.valid) {
-    return NextResponse.json({ error: phoneCheck.error }, { status: 400 });
+  let recipient = to;
+  if (to && !to.includes("@g.us")) {
+    const phoneCheck = validatePhone(to);
+    if (!phoneCheck.valid) {
+      return NextResponse.json({ error: phoneCheck.error }, { status: 400 });
+    }
+    recipient = phoneCheck.normalized;
   }
 
   try {
-    await whatsappManager.sendMessage(user!.userId, to, body, media || null);
+    await whatsappManager.sendMessage(user!.userId, recipient, body || "", media || null, deviceId || "main", location || null);
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (err: any) {
     const msg = err.message || "";
@@ -60,7 +64,7 @@ export async function POST(request: NextRequest) {
           to,
           from: "gateway",
           messageId: crypto.randomUUID(),
-          body,
+          body: body || "",
           status: "pending",
         },
       });

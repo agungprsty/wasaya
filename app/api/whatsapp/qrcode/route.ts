@@ -6,6 +6,9 @@ export async function GET(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
 
-  const qr = await whatsappManager.getQR(user!.userId);
+  const { searchParams } = new URL(request.url);
+  const deviceId = searchParams.get("deviceId") || "main";
+
+  const qr = await whatsappManager.getQR(user!.userId, deviceId);
   return NextResponse.json({ qr });
 }

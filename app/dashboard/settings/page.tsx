@@ -2,28 +2,25 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-interface SettingsData {
-  webhookUrl: string;
-  webhookSecret: string;
-}
-
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<SettingsData | null>(null);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [autoReplyText, setAutoReplyText] = useState("");
+  const [autoReplyActive, setAutoReplyActive] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
       .then((res) => res.json().catch(() => ({ settings: {} })))
       .then((data) => {
         const s = data.settings || {};
-        setSettings(s);
         setWebhookUrl(s.webhookUrl || "");
         setWebhookSecret(s.webhookSecret || "");
+        setAutoReplyText(s.autoReplyText || "");
+        setAutoReplyActive(s.autoReplyActive || false);
       });
   }, []);
 
@@ -36,6 +33,8 @@ export default function SettingsPage() {
       body: JSON.stringify({
         webhookUrl: webhookUrl || null,
         webhookSecret: webhookSecret || null,
+        autoReplyText: autoReplyText || null,
+        autoReplyActive,
       }),
     });
     setSaving(false);
@@ -47,7 +46,7 @@ export default function SettingsPage() {
     <div className="mx-auto w-full max-w-3xl px-6 py-10">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-[#075E54]">Settings</h1>
-        <p className="mt-1 text-sm text-zinc-500">Configure your webhook and account settings.</p>
+        <p className="mt-1 text-sm text-zinc-500">Configure your webhook, auto-reply, and account settings.</p>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
@@ -84,6 +83,46 @@ export default function SettingsPage() {
                 placeholder="Optional: secret for request verification"
               />
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
+          <h2 className="text-sm font-semibold text-[#075E54]">Auto Reply (1x/hari)</h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Automatically reply to the first message from each contact every day.
+          </p>
+
+          <div className="mt-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setAutoReplyActive(!autoReplyActive)}
+                className={`relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                  autoReplyActive ? "bg-[#25D366]" : "bg-zinc-200"
+                }`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                  autoReplyActive ? "translate-x-4" : "translate-x-0"
+                }`} />
+              </button>
+              <span className="text-sm text-zinc-700">{autoReplyActive ? "Active" : "Inactive"}</span>
+            </div>
+            <div>
+              <label htmlFor="autoReplyText" className="block text-sm font-medium text-zinc-700">
+                Auto Reply Message
+              </label>
+              <textarea
+                id="autoReplyText"
+                rows={3}
+                value={autoReplyText}
+                onChange={(e) => setAutoReplyText(e.target.value)}
+                className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15 resize-y"
+                placeholder="Halo, terima kasih sudah menghubungi. Kami akan segera merespon."
+              />
+            </div>
+            <p className="text-xs text-zinc-400">
+              Pesan ini akan dikirim 1x/hari sebagai balasan pertama ke setiap kontak. Auto Reply berjalan sebelum chatbot keyword rules.
+            </p>
           </div>
         </div>
 

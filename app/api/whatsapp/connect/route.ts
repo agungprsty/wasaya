@@ -6,6 +6,9 @@ export async function POST(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
 
-  whatsappManager.startConnect(user!.userId);
+  const { searchParams } = new URL(request.url);
+  const deviceId = searchParams.get("deviceId") || "main";
+
+  whatsappManager.startConnect(user!.userId, 120_000, deviceId).catch(() => {});
   return NextResponse.json({ ok: true });
 }

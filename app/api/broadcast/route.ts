@@ -15,8 +15,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
 
-  // Support both new format { messages: [{ to, body }] } and legacy { recipients, body }
-  const messages: { to: string; body: string }[] = body.messages
+  const messages: { to: string; body: string; location?: { latitude: number; longitude: number } }[] = body.messages
     || (body.recipients?.length
       ? body.recipients.map((to: string) => ({ to, body: body.body }))
       : []);
@@ -32,16 +31,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const deviceId = body.deviceId || "main";
   const results: { to: string; status: string; error?: string }[] = [];
-  let current = 0;
 
-  for (const { to, body: msgBody } of messages) {
-    current++;
+  for (const { to, body: msgBody, location } of messages) {
     try {
-      await whatsappManager.sendMessage(user!.userId, to, msgBody);
+      await whatsappManager.sendMessage(user!.userId, to, msgBody, null, deviceId, location || null);
       results.push({ to, status: "sent" });
-    } catch (err: any) {
-      const msg = err.message || "";
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
       if (msg.includes("not connected")) {
         await prisma.whatsAppMessage.create({
           data: {
@@ -58,7 +56,6 @@ export async function POST(request: NextRequest) {
         results.push({ to, status: "failed", error: msg });
       }
     }
-    // Rate limit: 1 msg per 1.2s to avoid ban
     await new Promise((r) => setTimeout(r, 1200));
   }
 

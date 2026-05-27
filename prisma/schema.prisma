@@ -20,7 +20,8 @@ model User {
   contacts       Contact[]
   messages       WhatsAppMessage[]
   settings       Settings?
-  whatsAppSession WhatsAppSession?
+  whatsAppSessions WhatsAppSession[]
+  autoReplyLogs  AutoReplyLog[]
   templates      MessageTemplate[]
   scheduledMessages ScheduledMessage[]
   groups         Group[]
@@ -74,6 +75,7 @@ model ContactGroup {
 model WhatsAppMessage {
   id        String   @id @default(uuid())
   userId    String
+  deviceId  String   @default("main")
   to        String
   from      String
   messageId String   @unique
@@ -88,17 +90,32 @@ model WhatsAppMessage {
 }
 
 model Settings {
-  id            String  @id @default(uuid())
-  userId        String  @unique
-  webhookUrl    String?
-  webhookSecret String?
+  id              String  @id @default(uuid())
+  userId          String  @unique
+  webhookUrl      String?
+  webhookSecret   String?
+  autoReplyText   String?
+  autoReplyActive Boolean @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model AutoReplyLog {
+  id        String   @id @default(uuid())
+  userId    String
+  contact   String
+  repliedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, contact])
+}
+
 model WhatsAppSession {
   id         String   @id @default(uuid())
-  userId     String   @unique
+  userId     String
+  deviceId   String   @default("main")
+  name       String   @default("Main Device")
   status     String   @default("disconnected")
   phone      String?
   qrCode     String?
@@ -106,6 +123,8 @@ model WhatsAppSession {
   updatedAt  DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
 }
 
 model MessageTemplate {

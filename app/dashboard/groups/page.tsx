@@ -102,7 +102,7 @@ export default function GroupsPage() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-[#075E54]">Contact Groups</h1>
-          <p className="mt-1 text-sm text-zinc-500">Organize contacts into groups for easier broadcasting.</p>
+          <p className="mt-1 text-sm text-zinc-500">Organize contacts into groups for easier broadcast sending.</p>
         </div>
         <button
           onClick={() => { resetForm(); setShowForm(!showForm); }}
@@ -173,7 +173,7 @@ export default function GroupsPage() {
         {loading ? (
           <div className="p-8 text-center text-sm text-zinc-400">Loading...</div>
         ) : groups.length === 0 ? (
-          <div className="p-8 text-center text-sm text-zinc-400">No groups yet. Create your first group.</div>
+          <div className="p-8 text-center text-sm text-zinc-400">No groups yet. Create your first contact group.</div>
         ) : (
           groups.map((g) => (
             <div key={g.id} className="rounded-xl border border-[#DCF8C6] bg-white p-6">

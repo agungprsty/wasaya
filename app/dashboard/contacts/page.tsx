@@ -35,6 +35,10 @@ export default function ContactsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState("");
+  const [showCsvImport, setShowCsvImport] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvResult, setCsvResult] = useState<{ imported: number; skipped: number; failed: number } | null>(null);
 
   function fetchContacts(p?: number) {
     setLoading(true);
@@ -185,13 +189,22 @@ export default function ContactsPage() {
             Export CSV
           </a>
           <button
-            onClick={openImport}
-            className="flex h-10 items-center gap-2 rounded-xl border border-[#25D366] px-5 text-sm font-semibold text-[#25D366] transition-colors hover:bg-[#25D366]/5"
+            onClick={() => { setShowCsvImport(true); setCsvResult(null); setCsvFile(null); }}
+            className="flex h-10 items-center gap-2 rounded-xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-600 transition-colors hover:bg-zinc-50"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
             </svg>
-            Import
+            Import CSV
+          </button>
+          <button
+            onClick={openImport}
+            className="flex h-10 items-center gap-2 rounded-xl border border-[#25D366] px-5 text-sm font-semibold text-[#25D366] transition-colors hover:bg-[#25D366]/5"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+            </svg>
+            Import WA
           </button>
           <button
             onClick={() => setShowForm(!showForm)}
@@ -377,6 +390,89 @@ export default function ContactsPage() {
           </>
         )}
       </div>
+
+      {showCsvImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <h2 className="text-lg font-semibold text-[#075E54]">Import CSV</h2>
+              <button onClick={() => { setShowCsvImport(false); setCsvResult(null); }} className="text-zinc-400 hover:text-zinc-600">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <label className="flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed border-zinc-200 bg-zinc-50/50 px-6 py-8 text-center transition-colors hover:border-[#25D366] hover:bg-[#DCF8C6]/10">
+                <svg className="h-8 w-8 text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                <span className="text-sm text-zinc-500">
+                  {csvFile ? csvFile.name : "Click to select CSV file"}
+                </span>
+                <span className="text-xs text-zinc-400">Columns: name, phone (header required)</span>
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                />
+              </label>
+
+              {csvResult && (
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-xl font-bold text-[#25D366]">{csvResult.imported}</p>
+                    <p className="text-xs text-zinc-500">Imported</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-bold text-yellow-500">{csvResult.skipped}</p>
+                    <p className="text-xs text-zinc-500">Skipped</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-bold text-red-500">{csvResult.failed}</p>
+                    <p className="text-xs text-zinc-500">Failed</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t px-6 py-4">
+              <button
+                onClick={() => { setShowCsvImport(false); setCsvResult(null); }}
+                className="flex h-10 items-center rounded-lg border border-zinc-200 px-5 text-sm text-zinc-600 hover:bg-zinc-50"
+              >
+                Close
+              </button>
+              <button
+                onClick={async () => {
+                  if (!csvFile) return;
+                  setCsvImporting(true);
+                  setCsvResult(null);
+                  const formData = new FormData();
+                  formData.append("file", csvFile);
+                  const res = await fetch("/api/contacts/import/csv", { method: "POST", body: formData });
+                  const data = await res.json().catch(() => ({}));
+                  setCsvImporting(false);
+                  if (res.ok) {
+                    setCsvResult(data);
+                    fetchContacts();
+                  }
+                }}
+                disabled={!csvFile || csvImporting}
+                className="flex h-10 items-center gap-2 rounded-lg bg-[#25D366] px-5 text-sm font-semibold text-white hover:bg-[#1DAF5A] disabled:opacity-50"
+              >
+                {csvImporting && (
+                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4Z" />
+                  </svg>
+                )}
+                {csvImporting ? "Importing..." : "Import CSV"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">

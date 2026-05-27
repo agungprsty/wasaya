@@ -18,12 +18,18 @@ export async function PUT(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
 
-  const { webhookUrl, webhookSecret } = await request.json();
+  const { webhookUrl, webhookSecret, autoReplyText, autoReplyActive } = await request.json();
+
+  const data: Record<string, unknown> = {};
+  if (webhookUrl !== undefined) data.webhookUrl = webhookUrl;
+  if (webhookSecret !== undefined) data.webhookSecret = webhookSecret;
+  if (autoReplyText !== undefined) data.autoReplyText = autoReplyText;
+  if (autoReplyActive !== undefined) data.autoReplyActive = autoReplyActive;
 
   const settings = await prisma.settings.upsert({
     where: { userId: user!.userId },
-    create: { userId: user!.userId, webhookUrl, webhookSecret },
-    update: { webhookUrl, webhookSecret },
+    create: { userId: user!.userId, ...data },
+    update: data,
   });
 
   return NextResponse.json({ settings });

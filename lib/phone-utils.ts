@@ -27,7 +27,7 @@ export function validatePhone(number: string): PhoneValidationResult {
   }
 
   if (!cleaned.startsWith("+")) {
-    return { valid: false, normalized: `+${cleaned}`, error: "Phone number should include country code (e.g. +62...)" };
+    return { valid: true, normalized: `+${cleaned}` };
   }
 
   return { valid: true, normalized: cleaned };

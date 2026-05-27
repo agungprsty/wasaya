@@ -7,9 +7,12 @@ export async function GET(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
 
+  const { searchParams } = new URL(request.url);
+  const deviceId = searchParams.get("deviceId") || "main";
+
   let waContacts;
   try {
-    waContacts = await whatsappManager.getContacts(user!.userId);
+    waContacts = await whatsappManager.getContacts(user!.userId, deviceId);
   } catch {
     return NextResponse.json({ error: "WhatsApp not connected" }, { status: 400 });
   }
