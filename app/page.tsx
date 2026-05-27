@@ -96,6 +96,7 @@ const plans = [
       "200 kontak",
       "10 template pesan",
       "1 koneksi perangkat",
+      "Bot auto-balas",
       "Broadcast massal",
       "Pesan terjadwal",
       "Akses REST API",
