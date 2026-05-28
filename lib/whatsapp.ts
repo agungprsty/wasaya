@@ -385,7 +385,7 @@ class BaileysManager {
           const typingDelay = calculateTypingDelay(replyText, msPerChar);
           await sleep(typingDelay);
 
-          await this.sendMessage(userId, jid, replyText, null, deviceId);
+          await this.sendMessage(userId, jid, replyText, null, deviceId, null, msg.key);
 
           if (isAutoReply) {
             markAutoReplySent(userId, jid).catch(() => {});
@@ -621,6 +621,7 @@ class BaileysManager {
     media: { base64: string; mimetype: string; filename?: string } | null = null,
     deviceId = "main",
     location?: { latitude: number; longitude: number; title?: string } | null,
+    quotedMsg?: unknown,
   ) {
     await this.ensureInitialized().catch(() => {});
     if (body) body = await this.applyWatermark(userId, body);
@@ -642,6 +643,9 @@ class BaileysManager {
     const typingEnabled = settings?.typingEnabled ?? true;
 
     if (typingEnabled && body && !jid.includes("@g.us")) {
+      if (Math.random() < 0.33) {
+        sock.sendPresenceUpdate("available").catch(() => {});
+      }
       sock.sendPresenceUpdate("composing", jid).catch(() => {});
       await humanDelay("direct-send", body.length);
       sock.sendPresenceUpdate("paused", jid).catch(() => {});
@@ -676,7 +680,11 @@ class BaileysManager {
       }
       await sock.sendMessage(jid, content);
     } else if (body) {
-      await sock.sendMessage(jid, { text: body });
+      const textContent: any = { text: body };
+      if (quotedMsg && Math.random() < 0.7) {
+        textContent.quoted = quotedMsg;
+      }
+      await sock.sendMessage(jid, textContent);
     } else if (!location) {
       throw new Error("Nothing to send");
     }

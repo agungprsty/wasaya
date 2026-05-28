@@ -566,7 +566,7 @@ export async function checkMonthlyLimit(userId: string, tier: string): Promise<b
 
 ---
 
-### Fase 5: Rotasi Pola & Variasi Perilaku Lanjutan — ❌ BELUM
+### Fase 5: Rotasi Pola & Variasi Perilaku Lanjutan — ✅ SELESAI
 **Tujuan:** Membuat fingerprint bot berubah terus sehingga tidak mudah dikenali oleh AI behavioral analysis Meta.
 
 **Dampak Anti-Ban:** 🟠🔴 Sangat Tinggi
@@ -810,6 +810,7 @@ model WhatsAppSession {
 | `lib/api-tier.ts` | ✅ **BARU** | 3, 4, 6 | Helper tier, daily/monthly limit, aging |
 | `instrumentation.ts` | ✅ **BARU** | 3 | Start BullMQ worker at app startup |
 | `lib/rate-limit.ts` | ❌ Diubah | 3 | Redis per-conversation throttle (tier-aware) — throttle di message-queue.ts |
+| `lib/whatsapp.ts` | ✅ Diubah | 5 | Random quoted reply (70/30) + random online presence (33%) |
 | `app/api/settings/route.ts` | ✅ Diubah | 1 | Field baru msPerChar, readDelayMs, typingEnabled, dll |
 | `app/api/messages/route.ts` | ✅ Diubah | 3 | Enqueue via BullMQ + daily/monthly limit + tolak broadcast (Free) |
 | `app/api/cron/process-scheduled/route.ts` | ✅ Diubah | 2, 3 | Enqueue per recipient via BullMQ + humanDelay broadcast |
@@ -915,6 +916,8 @@ Fase 1 → Fase 2 → Fase 3 → Fase 4 → Fase 5 → Fase 6
 - [x] Outbound-Inbound Ratio display — ✅ di settings page
 - [x] Broadcast route hardcoded delay — ✅ pakai `humanDelay("broadcast")`
 - [x] Cron reset daily (00:00) + monthly (01:00 tgl 1) — ✅ route sudah dibuat
+- [x] Random quoted reply (70% quote, 30% fresh) — ✅ di sendMessage (Fase 5A)
+- [x] Random online presence (33% available) — ✅ di sendMessage (Fase 5B)
 - [ ] Sidebar safety indicator + upgrade prompt — backlog Fase 4
 - [ ] Dashboard analytics cards (grafik) — backlog Fase 4
 - [ ] Real-time toast >80% limit — backlog Fase 4
