@@ -39,7 +39,7 @@ export default function DevicePage() {
       const res = await fetch(`/api/whatsapp/status?deviceId=${deviceId}`);
       const data = await res.json().catch(() => ({}));
       const s = data.session || {};
-      if (s.status === "connected") {
+      if (s.status === "connected" || s.status === "disconnected") {
         setConnectingStates((prev) => ({ ...prev, [deviceId]: false }));
         setQrStates((prev) => ({ ...prev, [deviceId]: null }));
       }

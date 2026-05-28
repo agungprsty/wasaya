@@ -11,6 +11,8 @@ export default function SettingsPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [autoReplyText, setAutoReplyText] = useState("");
   const [autoReplyActive, setAutoReplyActive] = useState(false);
+  const [watermarkText, setWatermarkText] = useState("");
+  const [watermarkActive, setWatermarkActive] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -21,6 +23,8 @@ export default function SettingsPage() {
         setWebhookSecret(s.webhookSecret || "");
         setAutoReplyText(s.autoReplyText || "");
         setAutoReplyActive(s.autoReplyActive || false);
+        setWatermarkText(s.watermarkText || "");
+        setWatermarkActive(s.watermarkActive || false);
       });
   }, []);
 
@@ -35,6 +39,8 @@ export default function SettingsPage() {
         webhookSecret: webhookSecret || null,
         autoReplyText: autoReplyText || null,
         autoReplyActive,
+        watermarkText: watermarkText || null,
+        watermarkActive,
       }),
     });
     setSaving(false);
@@ -122,6 +128,54 @@ export default function SettingsPage() {
             </div>
             <p className="text-xs text-zinc-400">
               Pesan ini akan dikirim 1x/hari sebagai balasan pertama ke setiap kontak. Auto Reply berjalan sebelum chatbot keyword rules.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
+          <h2 className="text-sm font-semibold text-[#075E54]">Watermark</h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Automatically add a footer to every message you send. Supports {"{{business_name}}"}, {"{{user_name}}"}, {"{{phone}}"}.
+          </p>
+
+          <div className="mt-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setWatermarkActive(!watermarkActive)}
+                className={`relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                  watermarkActive ? "bg-[#25D366]" : "bg-zinc-200"
+                }`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                  watermarkActive ? "translate-x-4" : "translate-x-0"
+                }`} />
+              </button>
+              <span className="text-sm text-zinc-700">{watermarkActive ? "Active" : "Inactive"}</span>
+            </div>
+            <div>
+              <label htmlFor="watermarkText" className="block text-sm font-medium text-zinc-700">
+                Watermark Text
+              </label>
+              <input
+                id="watermarkText"
+                type="text"
+                value={watermarkText}
+                onChange={(e) => setWatermarkText(e.target.value)}
+                className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+                placeholder="Dikirim via WAGateway"
+              />
+            </div>
+            {watermarkText && (
+              <div className="rounded-lg border border-[#DCF8C6] bg-[#f0fdf4] px-4 py-3">
+                <p className="text-xs font-medium text-[#075E54] mb-1">Preview:</p>
+                <p className="text-sm text-zinc-600">Your message here</p>
+                <p className="mt-2 border-t border-[#DCF8C6] pt-2 text-xs text-zinc-400">{"---"}</p>
+                <p className="text-xs text-zinc-500">{watermarkText}</p>
+              </div>
+            )}
+            <p className="text-xs text-zinc-400">
+              Watermark will be appended as a footer to all outgoing text messages when active.
             </p>
           </div>
         </div>

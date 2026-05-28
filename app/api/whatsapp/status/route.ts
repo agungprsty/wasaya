@@ -10,5 +10,8 @@ export async function GET(request: NextRequest) {
   const deviceId = searchParams.get("deviceId") || "main";
 
   const status = await whatsappManager.getStatus(user!.userId, deviceId);
+  if (!status) {
+    return NextResponse.json({ session: null, error: "Device not found" }, { status: 404 });
+  }
   return NextResponse.json({ session: status });
 }
