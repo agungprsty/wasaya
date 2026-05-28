@@ -19,9 +19,9 @@
 | Daily & monthly send limit per user | ✅ Ada (Fase 3) | Rendah — hanya dikekang API rate limit (30/min) |
 | Monitoring adaptif (auto slow-down) | ❌ Belum (Fase 6) | Rendah — tidak ada respon otomatis terhadap sinyal bahaya |
 | BullMQ + Redis (production queue) | ✅ Ada (Fase 3) | Sangat Tinggi — in-memory queue riskan hilang saat restart/crash |
-| Outbound-Inbound Ratio tracking | ❌ Belum (Fase 6) | Sedang — akun dengan ratio 10:1 (kirim:terima) mudah dideteksi |
+| Outbound-Inbound Ratio tracking | ✅ API endpoint + UI display (Fase 4) | Sedang — akun dengan ratio 10:1 (kirim:terima) mudah dideteksi |
 | Proxy per device | ❌ Field schema siap, integrasi belum (Fase 6) | Sedang — satu IP terbanned bisa lumpuhkan semua akun |
-| Tiered pricing (Free/Pro/Enterprise) | ⚠️ Schema + enforcement API siap, UI belum (Fase 3-4) | Kritis — abuse dari free user bisa cemari IP server |
+| Tiered pricing (Free/Pro/Enterprise) | ✅ Schema + enforcement API + UI siap (Fase 3-4) | Kritis — abuse dari free user bisa cemari IP server |
 | BullMQ priority queue (starvation protection) | ✅ Ada (Fase 3) | Sedang — antrean free user bisa blokir pesan Pro user |
 
 ---
@@ -550,11 +550,19 @@ export async function checkMonthlyLimit(userId: string, tier: string): Promise<b
 | File | Perubahan |
 |------|-----------|
 | `lib/api-tier.ts` | **BARU** — helper cek tier, daily limit, monthly limit, aging |
-| Dashboard settings page | Panel Anti-Ban berbeda per tier; menu Broadcast digembok (Free) |
-| `app/api/settings/route.ts` | Validasi tier + field baru (adminNumbers) |
+| Dashboard settings page | Panel Anti-Ban berbeda per tier; menu Broadcast digembok (Free); admin numbers input; outbound-inbound ratio |
+| `app/api/settings/route.ts` | Validasi tier + field baru (adminNumbers, safetyMode, enterpriseCustomSettings) |
 | `app/api/messages/route.ts` | Cek daily + monthly limit + tolak broadcast (Free) |
 | `app/api/analytics/route.ts` | **BARU** — endpoint statistik (Pro+) |
 | Dashboard layout/sidebar | Safety indicator + upgrade prompt (Free) |
+
+#### 4F. Known Gaps (Backlog — tidak menghalangi Fase 5)
+| Gap | Prioritas | Notes |
+|-----|-----------|-------|
+| Sidebar safety indicator + upgrade prompt | Rendah | Hanya UI layout, tidak mempengaruhi anti-ban enforcement |
+| Dashboard analytics card (grafik Pro+) | Rendah | API endpoint sudah siap, tinggal integrasi UI |
+| Real-time toast >80% limit | Rendah | Membutuhkan library toast (sonner/react-hot-toast) |
+| Speed slider msPerChar / typing speed | Rendah | Schema + API + logic sudah siap, tinggal input UI |
 
 ---
 
@@ -812,9 +820,10 @@ model WhatsAppSession {
 | `package.json` | ✅ Diubah | 3 | Tambah `bullmq`, `ioredis`, `tsx` |
 | `.env.example` | ✅ Diubah | 3 | Tambah `REDIS_URL` |
 | `docker-compose.yml` | ✅ Diubah | 3 | Tambah service redis |
-| Dashboard settings page | ✅ Diubah | 4 | Panel per tier; Broadcast digembok (Free) |
-| Dashboard layout/sidebar | ❌ Diubah | 4 | Safety indicator + upgrade prompt |
-| Dashboard analytics card | ❌ Diubah | 4 | Grafik sends + ratio + tren (Pro+) |
+| `app/api/broadcast/route.ts` | ✅ Diubah | 2 | Hardcoded 1200ms → `humanDelay("broadcast")` |
+| Dashboard settings page | ✅ Diubah | 4 | Panel per tier; Broadcast digembok (Free); Admin numbers input; Ratio display |
+| Dashboard layout/sidebar | ❌ Belum | 4 | Safety indicator + upgrade prompt — backlog |
+| Dashboard analytics card | ❌ Belum | 4 | Grafik sends + ratio + tren (Pro+) — backlog |
 
 ---
 
@@ -902,4 +911,11 @@ Fase 1 → Fase 2 → Fase 3 → Fase 4 → Fase 5 → Fase 6
 - [x] Pro: daily=200, monthly=5000, broadcast=aktif, concurrency=2 — ✅ enforcement API
 - [ ] Enterprise: unlimited + proxy + custom msPerChar — ❌ proxy + limit enforcement API siap, UI custom msPerChar belum
 - [x] Menu Broadcast Free: 🔒 gembok + modal upgrade — ✅ UI siap
+- [x] Admin Numbers input — ✅ UI di settings page (Pro: max 3, Enterprise: unlimited)
+- [x] Outbound-Inbound Ratio display — ✅ di settings page
+- [x] Broadcast route hardcoded delay — ✅ pakai `humanDelay("broadcast")`
 - [x] Cron reset daily (00:00) + monthly (01:00 tgl 1) — ✅ route sudah dibuat
+- [ ] Sidebar safety indicator + upgrade prompt — backlog Fase 4
+- [ ] Dashboard analytics cards (grafik) — backlog Fase 4
+- [ ] Real-time toast >80% limit — backlog Fase 4
+- [ ] Speed slider msPerChar — backlog Fase 4

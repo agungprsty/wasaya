@@ -49,14 +49,17 @@ export default function SettingsPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [ratio, setRatio] = useState<{ outbound: number; inbound: number; ratio: string } | null>(null);
 
   useEffect(() => {
-    fetch("/api/settings")
-      .then((res) => res.json().catch(() => ({})))
-      .then((data) => {
-        if (data.settings) setSettings(data.settings);
-        if (data.subscription) setSubscription(data.subscription);
-      });
+    Promise.all([
+      fetch("/api/settings").then((res) => res.json().catch(() => ({}))),
+      fetch("/api/analytics?metric=outbound-inbound-ratio").then((res) => res.json().catch(() => ({}))),
+    ]).then(([settingsData, ratioData]) => {
+      if (settingsData.settings) setSettings(settingsData.settings);
+      if (settingsData.subscription) setSubscription(settingsData.subscription);
+      if (ratioData.data) setRatio(ratioData.data);
+    });
   }, []);
 
   const tier = subscription?.tier || "free";
@@ -193,6 +196,24 @@ export default function SettingsPage() {
                 : "Penggunaan masih aman. Lanjutkan dengan pengaturan saat ini."}
           </p>
         </div>
+
+        {/* Outbound-Inbound Ratio */}
+        {ratio && (
+          <div className="mt-3 flex items-center gap-4 rounded-lg border border-zinc-100 bg-zinc-50 px-4 py-2.5">
+            <div className="text-sm">
+              <span className="font-medium text-zinc-700">Rasio Kirim/Terima: </span>
+              <span className="text-zinc-500">{ratio.ratio}</span>
+            </div>
+            <div className="text-sm">
+              <span className="font-medium text-zinc-700">Dikirim: </span>
+              <span className="text-zinc-500">{ratio.outbound.toLocaleString("id-ID")}</span>
+            </div>
+            <div className="text-sm">
+              <span className="font-medium text-zinc-700">Diterima: </span>
+              <span className="text-zinc-500">{ratio.inbound.toLocaleString("id-ID")}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
@@ -346,6 +367,31 @@ export default function SettingsPage() {
                 <option value="ketat">Ketat (Lambat & Aman)</option>
               </select>
             </div>
+
+            {/* Admin Numbers */}
+            {!isFree && (
+              <div>
+                <label htmlFor="adminNumbers" className="block text-sm font-medium text-zinc-700">
+                  Admin Numbers
+                </label>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  Nomor-nomor ini dilewati dari pembatasan percakapan per menit. Pisahkan dengan koma.
+                  {tier === "pro" && " Maks 3 nomor."}
+                </p>
+                <input
+                  id="adminNumbers"
+                  type="text"
+                  value={(settings?.adminNumbers ?? []).join(", ")}
+                  onChange={(e) => {
+                    const nums = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                    const max = tier === "pro" ? 3 : Infinity;
+                    updateField("adminNumbers", nums.slice(0, max));
+                  }}
+                  placeholder={tier === "pro" ? "628123456789, 628987654321" : "628123456789, 628987654321"}
+                  className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+                />
+              </div>
+            )}
 
             {/* Broadcast Toggle */}
             <div>

@@ -5,6 +5,7 @@ import { whatsappManager } from "@/lib/whatsapp";
 import crypto from "crypto";
 import { rateLimit } from "@/lib/rate-limit";
 import { validatePhone } from "@/lib/phone-utils";
+import { humanDelay } from "@/lib/delay-engine";
 
 export async function POST(request: NextRequest) {
   const { error, user } = await requireUser(request);
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
         results.push({ to, status: "failed", error: msg });
       }
     }
-    await new Promise((r) => setTimeout(r, 1200));
+    await humanDelay("broadcast");
   }
 
   const summary = {
