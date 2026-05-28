@@ -560,6 +560,23 @@ class BaileysManager {
     }));
   }
 
+  private async applyWatermark(userId: string, body: string): Promise<string> {
+    try {
+      const settings = await prisma.settings.findUnique({ where: { userId } });
+      if (settings?.watermarkActive && settings?.watermarkText) {
+        const watermark = settings.watermarkText
+          .replace(/\{\{user_name\}\}/g, "")
+          .replace(/\{\{business_name\}\}/g, "")
+          .replace(/\{\{phone\}\}/g, "")
+          .trim();
+        if (watermark) {
+          return body + `\n\n---\n${watermark}`;
+        }
+      }
+    } catch {}
+    return body;
+  }
+
   async sendMessage(
     userId: string,
     to: string,
@@ -569,6 +586,7 @@ class BaileysManager {
     location?: { latitude: number; longitude: number; title?: string } | null,
   ) {
     await this.ensureInitialized().catch(() => {});
+    if (body) body = await this.applyWatermark(userId, body);
 
     const key = makeKey(userId, deviceId);
     const session = await prisma.whatsAppSession.findUnique({

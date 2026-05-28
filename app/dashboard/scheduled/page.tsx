@@ -9,6 +9,12 @@ interface ScheduledMsg {
   scheduledAt: string;
   status: string;
   createdAt: string;
+  isRecurring: boolean;
+  recurrence: string | null;
+  interval: number | null;
+  nextRunAt: string | null;
+  repeatCount: number;
+  maxRepeats: number | null;
 }
 
 const statusStyles: Record<string, string> = {
@@ -59,6 +65,15 @@ export default function ScheduledPage() {
 
   async function cancel(id: string) {
     await fetch(`/api/scheduler?id=${id}`, { method: "DELETE" });
+    fetchMessages();
+  }
+
+  async function stopRecurring(id: string) {
+    await fetch(`/api/scheduler?id=${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "stop_recurring" }),
+    });
     fetchMessages();
   }
 
@@ -136,6 +151,14 @@ export default function ScheduledPage() {
                           }`} />
                           {msg.status}
                         </span>
+                        {msg.isRecurring && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
+                            </svg>
+                            Recurring
+                          </span>
+                        )}
                         <span className="text-xs text-zinc-400">
                           <svg className="-mt-0.5 mr-0.5 inline h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -167,10 +190,34 @@ export default function ScheduledPage() {
                             <span className="text-[10px] text-zinc-400">+{rcpts.length - 5} more</span>
                           )}
                         </div>
+                        {msg.isRecurring && (
+                          <div className="mt-1.5 flex flex-wrap gap-2">
+                            <span className="text-[10px] text-zinc-400">
+                              Sent {msg.repeatCount}x
+                              {msg.maxRepeats != null && ` / max ${msg.maxRepeats}x`}
+                            </span>
+                            {msg.nextRunAt && msg.status === "pending" && (
+                              <span className="text-[10px] text-zinc-400">
+                                Next: {new Date(msg.nextRunAt).toLocaleDateString("id-ID", {
+                                  weekday: "short", month: "short", day: "numeric",
+                                  hour: "2-digit", minute: "2-digit",
+                                })}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex shrink-0 items-start gap-2 pt-1">
-                      {msg.status === "pending" && (
+                      {msg.isRecurring && msg.status === "pending" && (
+                        <button
+                          onClick={() => stopRecurring(msg.id)}
+                          className="rounded-lg px-3 py-1.5 text-xs font-medium text-orange-500 hover:bg-orange-50 transition-colors"
+                        >
+                          Stop Recurring
+                        </button>
+                      )}
+                      {msg.status === "pending" && !msg.isRecurring && (
                         <button
                           onClick={() => cancel(msg.id)}
                           className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"

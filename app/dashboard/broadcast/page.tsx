@@ -38,6 +38,10 @@ export default function BroadcastPage() {
 
   const [scheduleMode, setScheduleMode] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
+  const [recurring, setRecurring] = useState(false);
+  const [recurrence, setRecurrence] = useState("daily");
+  const [recurInterval, setRecurInterval] = useState(1);
+  const [maxRepeats, setMaxRepeats] = useState<number | null>(null);
 
   // Fetch WhatsApp groups for group sending
   const [waGroups, setWaGroups] = useState<{ id: string; name: string; participants: number }[]>([]);
@@ -172,10 +176,20 @@ export default function BroadcastPage() {
           const c = contacts.find((c) => c.phone === m.to);
           return { to: m.to, name: c?.name };
         });
+        const payload: Record<string, unknown> = {
+          recipients, body,
+          scheduledAt: new Date(scheduledAt + ":00").toISOString(),
+        };
+        if (recurring) {
+          payload.isRecurring = true;
+          payload.recurrence = recurrence;
+          payload.interval = recurInterval;
+          if (maxRepeats != null && maxRepeats > 0) payload.maxRepeats = maxRepeats;
+        }
         const res = await fetch("/api/scheduler", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ recipients, body, scheduledAt: new Date(scheduledAt + ":00").toISOString() }),
+          body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed to schedule");
@@ -187,6 +201,10 @@ export default function BroadcastPage() {
         setVariableValues({});
         setScheduleMode(false);
         setScheduledAt("");
+        setRecurring(false);
+        setRecurrence("daily");
+        setRecurInterval(1);
+        setMaxRepeats(null);
       } catch {
         setResults([]);
       } finally {
@@ -478,15 +496,83 @@ export default function BroadcastPage() {
         </div>
 
         {scheduleMode && (
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 mb-1">Send at</label>
-            <input
-              type="datetime-local"
-              required
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className="block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
-            />
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-zinc-600 mb-1">Send at</label>
+              <input
+                type="datetime-local"
+                required
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setRecurring(!recurring)}
+                className={`relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                  recurring ? "bg-purple-500" : "bg-zinc-200"
+                }`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                  recurring ? "translate-x-4" : "translate-x-0"
+                }`} />
+              </button>
+              <span className="text-sm text-zinc-700">Repeat</span>
+              {recurring && (
+                <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700">
+                  Recurring
+                </span>
+              )}
+            </div>
+
+            {recurring && (
+              <div className="space-y-3 rounded-lg border border-purple-100 bg-purple-50/30 p-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 mb-1">Every</label>
+                    <select
+                      value={recurrence}
+                      onChange={(e) => setRecurrence(e.target.value)}
+                      className="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+                    >
+                      <option value="hourly">Hour(s)</option>
+                      <option value="daily">Day(s)</option>
+                      <option value="weekly">Week(s)</option>
+                      <option value="monthly">Month(s)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 mb-1">Interval</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={recurInterval}
+                      onChange={(e) => setRecurInterval(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 mb-1">Max repeats (optional)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={maxRepeats ?? ""}
+                    onChange={(e) => setMaxRepeats(e.target.value ? parseInt(e.target.value) : null)}
+                    className="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+                    placeholder="Leave empty for unlimited"
+                  />
+                </div>
+                <p className="text-xs text-zinc-400">
+                  Message will repeat every {recurInterval} {recurrence.replace("ly", "").replace("lly", "")}{recurInterval > 1 ? "s" : ""}
+                  {maxRepeats != null && `, up to ${maxRepeats} times`}.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

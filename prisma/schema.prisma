@@ -96,6 +96,8 @@ model Settings {
   webhookSecret   String?
   autoReplyText   String?
   autoReplyActive Boolean @default(false)
+  watermarkText   String?
+  watermarkActive Boolean @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -144,9 +146,18 @@ model ScheduledMessage {
   recipients  Json     // [{ "to": "+628...", "name": "..." }]
   body        String
   scheduledAt DateTime
-  status      String   @default("pending") // pending, processing, sent, failed, cancelled
+  status      String   @default("pending") // pending, processing, sent, failed, cancelled, completed
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  isRecurring Boolean  @default(false)
+  recurrence  String?  // "hourly" | "daily" | "weekly" | "monthly" | "custom"
+  cronExpr    String?  // cron expression if custom
+  interval    Int?     // every X hours/days/weeks (default 1)
+  nextRunAt   DateTime? // next scheduled execution
+  endDate     DateTime? // optional: stop at a certain date
+  maxRepeats  Int?     // optional: max number of repetitions
+  repeatCount Int      @default(0) // how many times already sent
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
