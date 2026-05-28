@@ -8,21 +8,21 @@
 
 | Aspek | Status | Dampak Risiko |
 |-------|--------|---------------|
-| `sendPresenceUpdate()` (typing/recording) | ❌ Tidak pernah dipanggil | Tinggi — bot tidak menunjukkan aktivitas seperti manusia |
-| `sendReceipt()` / `readMessages()` (read mark) | ❌ Tidak pernah dipanggil | Tinggi — pesan dibaca instan tanpa jejak |
-| Dynamic randomized delay | ❌ Semua delay hardcoded `1200ms` | Tinggi — pola interval tetap mudah dideteksi |
-| Per-message delay di `sendMessage()` | ❌ Tidak ada | Tinggi — pesan dikirim instan tanpa jeda |
-| Message queue / antrian | ❌ Tidak ada | Sangat Tinggi — tidak ada recovery, tidak ada kontrol laju |
-| Typing simulation di chatbot | ❌ Chatbot reply instan | Tinggi — balasan dalam < 1 detik, tidak manusiawi |
-| Pengaturan anti-ban di Settings model | ❌ Belum ada field | Sedang — user tidak bisa dikonfigurasi/dibatasi |
-| Per-conversation rate limiting | ❌ Tidak ada | Sedang — spam ke 1 nomor bisa terjadi |
-| Daily & monthly send limit per user | ❌ Tidak ada | Rendah — hanya dikekang API rate limit (30/min) |
-| Monitoring adaptif (auto slow-down) | ❌ Tidak ada | Rendah — tidak ada respon otomatis terhadap sinyal bahaya |
-| BullMQ + Redis (production queue) | ❌ Tidak ada | Sangat Tinggi — in-memory queue riskan hilang saat restart/crash |
-| Outbound-Inbound Ratio tracking | ❌ Tidak ada | Sedang — akun dengan ratio 10:1 (kirim:terima) mudah dideteksi |
-| Proxy per device | ❌ Tidak ada | Sedang — satu IP terbanned bisa lumpuhkan semua akun |
-| Tiered pricing (Free/Pro/Enterprise) | ❌ Tidak ada | Kritis — abuse dari free user bisa cemari IP server |
-| BullMQ priority queue (starvation protection) | ❌ Tidak ada | Sedang — antrean free user bisa blokir pesan Pro user |
+| `sendPresenceUpdate()` (typing/recording) | ✅ Ada (Fase 1) | Tinggi — bot tidak menunjukkan aktivitas seperti manusia |
+| `sendReceipt()` / `readMessages()` (read mark) | ✅ Ada dengan jeda (Fase 1) | Tinggi — pesan dibaca instan tanpa jejak |
+| Dynamic randomized delay | ✅ Ada (Fase 2) | Tinggi — pola interval tetap mudah dideteksi |
+| Per-message delay di `sendMessage()` | ✅ Ada (Fase 1C) | Tinggi — pesan dikirim instan tanpa jeda |
+| Message queue / antrian | ✅ Ada (Fase 3) | Sangat Tinggi — tidak ada recovery, tidak ada kontrol laju |
+| Typing simulation di chatbot | ✅ Ada (Fase 1) | Tinggi — balasan dalam < 1 detik, tidak manusiawi |
+| Pengaturan anti-ban di Settings model | ✅ Field sudah ada | Sedang — user tidak bisa dikonfigurasi/dibatasi |
+| Per-conversation rate limiting | ✅ Ada (Fase 3) | Sedang — spam ke 1 nomor bisa terjadi |
+| Daily & monthly send limit per user | ✅ Ada (Fase 3) | Rendah — hanya dikekang API rate limit (30/min) |
+| Monitoring adaptif (auto slow-down) | ❌ Belum (Fase 6) | Rendah — tidak ada respon otomatis terhadap sinyal bahaya |
+| BullMQ + Redis (production queue) | ✅ Ada (Fase 3) | Sangat Tinggi — in-memory queue riskan hilang saat restart/crash |
+| Outbound-Inbound Ratio tracking | ❌ Belum (Fase 6) | Sedang — akun dengan ratio 10:1 (kirim:terima) mudah dideteksi |
+| Proxy per device | ❌ Field schema siap, integrasi belum (Fase 6) | Sedang — satu IP terbanned bisa lumpuhkan semua akun |
+| Tiered pricing (Free/Pro/Enterprise) | ⚠️ Schema + enforcement API siap, UI belum (Fase 3-4) | Kritis — abuse dari free user bisa cemari IP server |
+| BullMQ priority queue (starvation protection) | ✅ Ada (Fase 3) | Sedang — antrean free user bisa blokir pesan Pro user |
 
 ---
 
@@ -109,7 +109,7 @@ model Subscription {
 
 ## 📋 Rencana Strategis — 6 Fase
 
-### Fase 1: Simulasi Membaca & Mengetik (Typing + Read Receipt)
+### Fase 1: Simulasi Membaca & Mengetik (Typing + Read Receipt) — ✅ SELESAI
 **Tujuan:** Membuat bot terlihat seperti manusia yang membaca pesan, berpikir, lalu mengetik sebelum merespons.
 
 **Dampak Anti-Ban:** 🟢 Rendah — tapi merupakan fondasi penting
@@ -144,12 +144,12 @@ model Subscription {
   4. Jeda kecil 0.5-2 detik (seolah periksa kembali pesan)
   5. Kirim pesan
 
-#### 1C. Presence Sebelum Kirim Pesan (Single Send)
+#### 1C. Presence Sebelum Kirim Pesan (Single Send) — ✅
 - **Lokasi:** `lib/whatsapp.ts` — method `sendMessage()`
 - **Saat:** Hanya untuk pengiriman ke 1 nomor (bukan broadcast)
 - **Alur:**
   1. `sock.sendPresenceUpdate("composing", jid)`
-  2. Jeda dinamis berdasarkan panjang body (MS_PER_CHAR)
+  2. `humanDelay("direct-send", body.length)` — jeda dinamis
   3. `sock.sendPresenceUpdate("paused", jid)`
   4. Kirim
 
@@ -173,7 +173,7 @@ maxTypingDelay      Int     @default(8000)  // ms
 
 ---
 
-### Fase 2: Dynamic Randomized Delay Engine (MS_PER_CHAR + Jitter)
+### Fase 2: Dynamic Randomized Delay Engine (MS_PER_CHAR + Jitter) — ✅ SELESAI
 **Tujuan:** Mengganti semua delay hardcoded (`1200ms`) dengan delay dinamis berbasis MS_PER_CHAR + jitter acak.
 
 **Dampak Anti-Ban:** 🟢🟡 Sedang — membuat pola pengiriman lebih alami
@@ -233,7 +233,7 @@ Jitter: ±(20-40%) tergantung profil.
 
 ---
 
-### Fase 3: BullMQ + Redis — Priority Queue & Anti-Abuse Pipeline
+### Fase 3: BullMQ + Redis — Priority Queue & Anti-Abuse Pipeline — ✅ SELESAI
 **Tujuan:** Mencegah pengiriman massal instan, pastikan tidak ada pesan hilang, dan lindungi pengguna berbayar dari queue starvation.
 
 **Dampak Anti-Ban:** 🔴 Sangat Tinggi — backbone reliability + anti-abuse
@@ -454,7 +454,7 @@ async function checkThrottle(userId: string, jid: string, tier: string): Promise
 
 ---
 
-### Fase 4: Edukasi & Batasan di Tingkat Pengguna (UI)
+### Fase 4: Edukasi & Batasan di Tingkat Pengguna (UI) — ❌ BELUM
 **Tujuan:** Membatasi pengguna dari perilaku berisiko tinggi melalui UI bertingkat sesuai tier.
 
 **Dampak Anti-Ban:** 🟢 Sedang — mencegah user menyabot diri sendiri
@@ -558,7 +558,7 @@ export async function checkMonthlyLimit(userId: string, tier: string): Promise<b
 
 ---
 
-### Fase 5: Rotasi Pola & Variasi Perilaku Lanjutan
+### Fase 5: Rotasi Pola & Variasi Perilaku Lanjutan — ❌ BELUM
 **Tujuan:** Membuat fingerprint bot berubah terus sehingga tidak mudah dikenali oleh AI behavioral analysis Meta.
 
 **Dampak Anti-Ban:** 🟠🔴 Sangat Tinggi
@@ -596,7 +596,7 @@ if (Math.random() < 0.33) {
 
 ---
 
-### Fase 6: Monitoring Adaptif, Proxy, & Akun Aging
+### Fase 6: Monitoring Adaptif, Proxy, & Akun Aging — ❌ BELUM
 **Tujuan:** Deteksi sinyal awal banned, auto slow-down, isolasi akun dengan proxy.
 
 **Dampak Anti-Ban:** 🔴 Kritis
@@ -793,26 +793,28 @@ model WhatsAppSession {
 
 | File | Status | Fase | Perubahan |
 |------|--------|------|-----------|
-| `lib/whatsapp.ts` | ✏️ Diubah | 1, 2, 3, 5, 6 | MS_PER_CHAR typing, read delay, enqueue BullMQ, quoted random, presence, safety, proxy |
-| `lib/chatbot.ts` | ✏️ Diubah | 1, 5 | MS_PER_CHAR typing, quoted reply |
-| `lib/delay-engine.ts` | **BARU** | 2 | MS_PER_CHAR calculator + delay profil + jitter |
-| `lib/redis.ts` | **BARU** | 3 | Redis client instance |
-| `lib/message-queue.ts` | **BARU** | 3, 6 | BullMQ queue + worker + tier priority + throttle + safety |
-| `lib/safety-monitor.ts` | **BARU** | 6 | Monitoring adaptif + auto slow-down + ratio tracker |
-| `lib/api-tier.ts` | **BARU** | 4, 6 | Helper tier, daily/monthly limit, aging |
-| `lib/rate-limit.ts` | ✏️ Diubah | 3 | Redis per-conversation throttle (tier-aware) |
-| `app/api/settings/route.ts` | ✏️ Diubah | 1, 3, 4 | Field baru + tier validation + admin/proxy |
-| `app/api/messages/route.ts` | ✏️ Diubah | 3 | Enqueue + daily/monthly limit + tolak broadcast (Free) |
-| `app/api/cron/process-scheduled/route.ts` | ✏️ Diubah | 2, 3 | Dynamic delay + enqueue via BullMQ |
-| `app/api/cron/reset-daily-counts/route.ts` | **BARU** | 6 | Reset daily tiap 00:00 |
-| `app/api/cron/reset-monthly-counts/route.ts` | **BARU** | 6 | Reset monthly tiap 01:00 tgl 1 |
-| `app/api/analytics/route.ts` | **BARU** | 4 | Statistik harian + bulanan (Pro+) |
-| `prisma/schema.prisma` | ✏️ Diubah | 1, 3, 4, 6 | Model Subscription + field Settings & WhatsAppSession |
-| `package.json` | ✏️ Diubah | 3 | Tambah `bullmq`, `ioredis` |
-| `.env.example` | ✏️ Diubah | 3 | Tambah `REDIS_URL` |
-| Dashboard settings page | ✏️ Diubah | 4 | Panel per tier; Broadcast digembok (Free) |
-| Dashboard layout/sidebar | ✏️ Diubah | 4 | Safety indicator + upgrade prompt |
-| Dashboard analytics card | ✏️ Diubah | 4 | Grafik sends + ratio + tren (Pro+) |
+| `lib/whatsapp.ts` | ✅ Diubah | 1, 2 | MS_PER_CHAR typing, read delay, sendMessage typing presence (1C), retry pake humanDelay |
+| `lib/chatbot.ts` | ✅ Diubah | 1 | processAutoReply return text instead of send |
+| `lib/delay-engine.ts` | ✅ **BARU** | 2 | Profil delay + MS_PER_CHAR calculator + jitter + humanDelay() |
+| `lib/redis.ts` | ✅ **BARU** | 3 | Redis client instance |
+| `lib/message-queue.ts` | ✅ **BARU** | 3 | BullMQ queue + worker + tier priority + throttle |
+| `lib/safety-monitor.ts` | ❌ **BARU** | 6 | Monitoring adaptif + auto slow-down + ratio tracker |
+| `lib/api-tier.ts` | ✅ **BARU** | 3, 4, 6 | Helper tier, daily/monthly limit, aging |
+| `instrumentation.ts` | ✅ **BARU** | 3 | Start BullMQ worker at app startup |
+| `lib/rate-limit.ts` | ❌ Diubah | 3 | Redis per-conversation throttle (tier-aware) — throttle di message-queue.ts |
+| `app/api/settings/route.ts` | ✅ Diubah | 1 | Field baru msPerChar, readDelayMs, typingEnabled, dll |
+| `app/api/messages/route.ts` | ✅ Diubah | 3 | Enqueue via BullMQ + daily/monthly limit + tolak broadcast (Free) |
+| `app/api/cron/process-scheduled/route.ts` | ✅ Diubah | 2, 3 | Enqueue per recipient via BullMQ + humanDelay broadcast |
+| `app/api/cron/reset-daily-counts/route.ts` | ❌ **BARU** | 6 | Reset daily tiap 00:00 |
+| `app/api/cron/reset-monthly-counts/route.ts` | ❌ **BARU** | 6 | Reset monthly tiap 01:00 tgl 1 |
+| `app/api/analytics/route.ts` | ❌ **BARU** | 4 | Statistik harian + bulanan (Pro+) |
+| `prisma/schema.prisma` | ✅ Diubah | 1, 3, 4, 6 | Model Subscription + field Settings & WhatsAppSession |
+| `package.json` | ✅ Diubah | 3 | Tambah `bullmq`, `ioredis`, `tsx` |
+| `.env.example` | ✅ Diubah | 3 | Tambah `REDIS_URL` |
+| `docker-compose.yml` | ✅ Diubah | 3 | Tambah service redis |
+| Dashboard settings page | ❌ Diubah | 4 | Panel per tier; Broadcast digembok (Free) |
+| Dashboard layout/sidebar | ❌ Diubah | 4 | Safety indicator + upgrade prompt |
+| Dashboard analytics card | ❌ Diubah | 4 | Grafik sends + ratio + tren (Pro+) |
 
 ---
 
@@ -890,13 +892,14 @@ Fase 1 → Fase 2 → Fase 3 → Fase 4 → Fase 5 → Fase 6
 ```
 
 ### Checklist Deploy
-- [ ] `docker compose up -d redis` — Redis running dengan AOF persistence
-- [ ] `REDIS_URL` terisi di `.env`
-- [ ] Migrasi Prisma (Subscription + field baru)
-- [ ] Semua user existing punya record Subscription (seed)
-- [ ] BullMQ worker jalan (top-level import Next.js)
-- [ ] Free: daily=50, monthly=500, broadcast=403, concurrency=1
-- [ ] Pro: daily=200, monthly=5000, broadcast=aktif, concurrency=2
-- [ ] Enterprise: unlimited + proxy + custom msPerChar
-- [ ] Menu Broadcast Free: 🔒 gembok + modal upgrade
-- [ ] Cron reset daily (00:00) + monthly (01:00 tgl 1)
+- [x] `docker compose up -d redis` — Redis running dengan AOF persistence (`docker-compose.yml`)
+- [x] `REDIS_URL` terisi di `.env`
+- [x] Migrasi Prisma (Subscription + field baru) — `20260528141401_add_anti_ban_and_subscription`
+- [x] Semua user existing punya record Subscription (seed)
+- [x] `humanDelay("broadcast")` menggantikan hardcoded 1200ms di process-scheduled
+- [x] BullMQ worker jalan via `instrumentation.ts` (startWorker dipanggil saat server start)
+- [x] Free: daily=50, monthly=500, broadcast=403, concurrency=1 — ✅ enforcement API (messages/route.ts + api-tier.ts)
+- [x] Pro: daily=200, monthly=5000, broadcast=aktif, concurrency=2 — ✅ enforcement API
+- [ ] Enterprise: unlimited + proxy + custom msPerChar — ❌ proxy + limit enforcement API siap, UI custom msPerChar belum
+- [ ] Menu Broadcast Free: 🔒 gembok + modal upgrade — ❌ UI belum
+- [ ] Cron reset daily (00:00) + monthly (01:00 tgl 1) — ❌ route belum dibuat

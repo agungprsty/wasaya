@@ -1,7 +1,8 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { deliverWebhook } from "@/lib/webhook";
-import { processChatbot, processAutoReply } from "@/lib/chatbot";
+import { processChatbot, processAutoReply, markAutoReplySent } from "@/lib/chatbot";
+import { sleep, calculateTypingDelay, jitterDelay, humanDelay } from "@/lib/delay-engine";
 import { waLogger } from "@/lib/logger";
 import { usePrismaAuthState } from "@/lib/baileys-auth";
 import makeWASocket, {
@@ -355,21 +356,57 @@ class BaileysManager {
           },
         });
 
-        const autoReplied = await processAutoReply(userId, jid, deviceId).catch(() => false);
-        if (autoReplied) return;
+        let replyText: string | null = null;
+        let isAutoReply = false;
 
-        const reply = await processChatbot(userId, jid, body).catch(() => null);
-        if (reply) {
-          this.sendMessage(userId, jid, reply, null, deviceId).catch(() => {});
-          return;
+        const autoReplyText = await processAutoReply(userId, jid).catch(() => null);
+        if (autoReplyText) {
+          replyText = autoReplyText;
+          isAutoReply = true;
         }
 
-        deliverWebhook(userId, "message.received", {
-          id: record.id,
-          from: jid,
-          body,
-          timestamp: record.timestamp.toISOString(),
-        }).catch(() => {});
+        if (!replyText) {
+          replyText = await processChatbot(userId, jid, body).catch(() => null);
+        }
+
+        const settings = await prisma.settings.findUnique({ where: { userId } }).catch(() => null);
+        const msPerChar = settings?.msPerChar ?? 100;
+        const readDelayMs = settings?.readDelayMs ?? 1500;
+        const typingEnabled = settings?.typingEnabled ?? true;
+
+        if (replyText) {
+          const readingDelay = jitterDelay(readDelayMs);
+          await sleep(readingDelay);
+
+          if (typingEnabled) {
+            sock.sendPresenceUpdate("composing", jid).catch(() => {});
+          }
+
+          const typingDelay = calculateTypingDelay(replyText, msPerChar);
+          await sleep(typingDelay);
+
+          await this.sendMessage(userId, jid, replyText, null, deviceId);
+
+          if (isAutoReply) {
+            markAutoReplySent(userId, jid).catch(() => {});
+          }
+
+          await sleep(jitterDelay(500));
+          sock.readMessages([msg.key]).catch(() => {});
+        } else {
+          const readingDelay = jitterDelay(readDelayMs);
+          await sleep(readingDelay);
+          sock.readMessages([msg.key]).catch(() => {});
+        }
+
+        if (!replyText) {
+          deliverWebhook(userId, "message.received", {
+            id: record.id,
+            from: jid,
+            body,
+            timestamp: record.timestamp.toISOString(),
+          }).catch(() => {});
+        }
       }
     });
 
@@ -601,6 +638,15 @@ class BaileysManager {
 
     const jid = toJID(to);
 
+    const settings = await prisma.settings.findUnique({ where: { userId } }).catch(() => null);
+    const typingEnabled = settings?.typingEnabled ?? true;
+
+    if (typingEnabled && body && !jid.includes("@g.us")) {
+      sock.sendPresenceUpdate("composing", jid).catch(() => {});
+      await humanDelay("direct-send", body.length);
+      sock.sendPresenceUpdate("paused", jid).catch(() => {});
+    }
+
     if (location) {
       await sock.sendMessage(jid, {
         location: {
@@ -667,7 +713,7 @@ class BaileysManager {
           data: { status: "sent" },
         });
       } catch {}
-      await new Promise((r) => setTimeout(r, 1200));
+      await humanDelay("retry");
     }
   }
 }

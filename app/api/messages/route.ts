@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/api-auth";
-import { whatsappManager } from "@/lib/whatsapp";
 import { rateLimit } from "@/lib/rate-limit";
 import { validatePhone } from "@/lib/phone-utils";
+import { getUserTier, getTierLimits } from "@/lib/api-tier";
+import { enqueueMessage } from "@/lib/message-queue";
+import { toJID } from "@/lib/whatsapp";
 
 export async function GET(request: NextRequest) {
   const { error, user } = await requireUser(request);
@@ -43,33 +44,56 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Recipient number is required" }, { status: 400 });
   }
 
-  let recipient = to;
-  if (to && !to.includes("@g.us")) {
-    const phoneCheck = validatePhone(to);
-    if (!phoneCheck.valid) {
-      return NextResponse.json({ error: phoneCheck.error }, { status: 400 });
-    }
-    recipient = phoneCheck.normalized;
+  const tier = await getUserTier(user!.userId);
+  const limits = getTierLimits(tier);
+
+  const isBroadcast = Array.isArray(to) && to.length > 1;
+  if (isBroadcast && !limits.broadcast) {
+    return NextResponse.json(
+      {
+        error: "Fitur broadcast massal hanya tersedia di paket Pro.",
+        upgrade_url: "/pricing",
+      },
+      { status: 403 },
+    );
+  }
+
+  const recipients = Array.isArray(to) ? to : [to];
+  const jids = recipients.map((r: string) => {
+    if (r.includes("@")) return toJID(r);
+    const phoneCheck = validatePhone(r);
+    if (!phoneCheck.valid) throw new Error(`${r}: ${phoneCheck.error}`);
+    return toJID(phoneCheck.normalized);
+  });
+
+  const sub = await prisma.subscription.findUnique({ where: { userId: user!.userId } });
+  const monthlySent = sub?.monthlySentCount ?? 0;
+
+  if (monthlySent + jids.length > limits.monthlyLimit) {
+    return NextResponse.json(
+      {
+        error: `Batas bulanan tercapai (${monthlySent}/${limits.monthlyLimit}). Upgrade ke Pro untuk ${limits.monthlyLimit === 500 ? "5.000" : "lebih banyak"} pesan/bulan.`,
+        upgrade_url: "/pricing",
+      },
+      { status: 429 },
+    );
   }
 
   try {
-    await whatsappManager.sendMessage(user!.userId, recipient, body || "", media || null, deviceId || "main", location || null);
-    return NextResponse.json({ ok: true }, { status: 201 });
-  } catch (err: any) {
-    const msg = err.message || "";
-    if (msg.includes("not connected") || msg.includes("disconnected")) {
-      const fallback = await prisma.whatsAppMessage.create({
-        data: {
-          userId: user!.userId,
-          to,
-          from: "gateway",
-          messageId: crypto.randomUUID(),
-          body: body || "",
-          status: "pending",
-        },
+    for (const jid of jids) {
+      await enqueueMessage({
+        userId: user!.userId,
+        tier,
+        jid,
+        body: body || "",
+        media: media || null,
+        deviceId: deviceId || "main",
+        location: location || null,
       });
-      return NextResponse.json({ message: fallback, warning: "WhatsApp not connected. Message queued." }, { status: 202 });
     }
-    return NextResponse.json({ error: msg || "Failed to send message" }, { status: 500 });
+
+    return NextResponse.json({ ok: true, count: jids.length }, { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Failed to queue message" }, { status: 500 });
   }
 }

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { whatsappManager } from "@/lib/whatsapp";
 import { requireUser } from "@/lib/api-auth";
+import { humanDelay } from "@/lib/delay-engine";
+import { getUserTier, getTierLimits } from "@/lib/api-tier";
+import { enqueueMessage } from "@/lib/message-queue";
+import { toJID } from "@/lib/whatsapp";
 import crypto from "crypto";
 
 function calculateNextRun(msg: {
@@ -41,11 +44,8 @@ export async function POST(request: NextRequest) {
 
   let targetUserId: string | null = null;
 
-  // System-wide trigger via CRON_SECRET
   if (cronSecret && internalSecret && cronSecret === internalSecret) {
-    // Process all users
   } else {
-    // User-triggered via session (from page load)
     const auth = await requireUser(request);
     if (auth.error) return auth.error;
     targetUserId = auth.user!.userId;
@@ -78,32 +78,43 @@ export async function POST(request: NextRequest) {
       data: { status: "processing" },
     });
 
+    const tier = await getUserTier(msg.userId);
+    const limits = getTierLimits(tier);
+
+    const sub = await prisma.subscription.findUnique({ where: { userId: msg.userId } });
+    const monthlySent = sub?.monthlySentCount ?? 0;
+
     let sent = 0;
     let failed = 0;
 
     for (const recipient of recipients) {
-      try {
-        await whatsappManager.sendMessage(msg.userId, recipient.to, msg.body);
-        sent++;
-      } catch (err: any) {
-        if ((err.message || "").includes("not connected")) {
-          await prisma.whatsAppMessage.create({
-            data: {
-              userId: msg.userId,
-              to: recipient.to,
-              from: "gateway",
-              messageId: crypto.randomUUID(),
-              body: msg.body,
-              status: "pending",
-            },
-          });
-          sent++;
-        } else {
-          failed++;
-        }
+      if (monthlySent + sent >= limits.monthlyLimit) {
+        failed++;
+        continue;
       }
-      // Rate limit: 1 msg per 1.2s
-      await new Promise((r) => setTimeout(r, 1200));
+
+      try {
+        const jid = toJID(recipient.to);
+        await enqueueMessage({
+          userId: msg.userId,
+          tier,
+          jid,
+          body: msg.body,
+          deviceId: "main",
+        });
+        sent++;
+      } catch {
+        failed++;
+      }
+
+      await humanDelay("broadcast");
+    }
+
+    if (sent > 0) {
+      await prisma.subscription.update({
+        where: { userId: msg.userId },
+        data: { monthlySentCount: { increment: sent } },
+      });
     }
 
     const deliveryStatus = failed === recipients.length ? "failed" : sent > 0 ? "sent" : "failed";

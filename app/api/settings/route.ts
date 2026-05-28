@@ -18,7 +18,7 @@ export async function PUT(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
 
-  const { webhookUrl, webhookSecret, autoReplyText, autoReplyActive, watermarkText, watermarkActive } = await request.json();
+  const { webhookUrl, webhookSecret, autoReplyText, autoReplyActive, watermarkText, watermarkActive, msPerChar, readDelayMs, typingEnabled, broadcastEnabled, concurrency, adminNumbers } = await request.json();
 
   const data: Record<string, unknown> = {};
   if (webhookUrl !== undefined) data.webhookUrl = webhookUrl;
@@ -27,6 +27,12 @@ export async function PUT(request: NextRequest) {
   if (autoReplyActive !== undefined) data.autoReplyActive = autoReplyActive;
   if (watermarkText !== undefined) data.watermarkText = watermarkText;
   if (watermarkActive !== undefined) data.watermarkActive = watermarkActive;
+  if (msPerChar !== undefined) data.msPerChar = msPerChar;
+  if (readDelayMs !== undefined) data.readDelayMs = readDelayMs;
+  if (typingEnabled !== undefined) data.typingEnabled = typingEnabled;
+  if (broadcastEnabled !== undefined) data.broadcastEnabled = broadcastEnabled;
+  if (concurrency !== undefined) data.concurrency = concurrency;
+  if (adminNumbers !== undefined) data.adminNumbers = adminNumbers;
 
   const settings = await prisma.settings.upsert({
     where: { userId: user!.userId },
