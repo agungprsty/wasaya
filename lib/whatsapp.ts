@@ -15,6 +15,14 @@ function makeKey(userId: string, deviceId: string): string {
   return `${userId}_${deviceId}`;
 }
 
+function toJID(to: string): string {
+  if (to.includes("@")) {
+    return to.replace(/@c\.us$/, "@s.whatsapp.net");
+  }
+  const clean = to.replace(/[^0-9]/g, "");
+  return `${clean}@s.whatsapp.net`;
+}
+
 class WhatsAppManager {
   private clients: Map<string, Client> = new Map();
   private connecting: Map<string, Promise<void>> = new Map();

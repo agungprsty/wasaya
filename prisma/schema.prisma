@@ -181,6 +181,19 @@ model Product {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model BaileysAuthCred {
+  id        String   @id @default(uuid())
+  userId    String
+  deviceId  String
+  category  String   // creds | session | pre-key | sender-key | app-state-sync-key
+  keyId     String?
+  data      Json
+
+  @@unique([userId, deviceId, category, keyId])
+  @@index([userId, deviceId])
+  @@map("baileys_auth_cred")
+}
+
 model WebhookEvent {
   id          String    @id @default(uuid())
   userId      String

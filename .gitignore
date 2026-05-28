@@ -13,7 +13,8 @@
 # testing
 /coverage
 
-# whatsapp cache
+# whatsapp cache (Baileys — no LocalAuth, sessions stored in DB)
+# wa_sessions was used by whatsapp-web.js / LocalAuth — no longer needed
 /wa_sessions
 /.wwebjs_cache
 
