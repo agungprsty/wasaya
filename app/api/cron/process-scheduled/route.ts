@@ -4,8 +4,8 @@ import { requireUser } from "@/lib/api-auth";
 import { humanDelay } from "@/lib/delay-engine";
 import { getUserTier, getTierLimits } from "@/lib/api-tier";
 import { enqueueMessage } from "@/lib/message-queue";
+import { getUsage } from "@/lib/usage";
 import { toJID } from "@/lib/whatsapp";
-import crypto from "crypto";
 
 function calculateNextRun(msg: {
   scheduledAt: Date;
@@ -81,14 +81,13 @@ export async function POST(request: NextRequest) {
     const tier = await getUserTier(msg.userId);
     const limits = getTierLimits(tier);
 
-    const sub = await prisma.subscription.findUnique({ where: { userId: msg.userId } });
-    const monthlySent = sub?.monthlySentCount ?? 0;
+    const usage = await getUsage(msg.userId);
 
     let sent = 0;
     let failed = 0;
 
     for (const recipient of recipients) {
-      if (monthlySent + sent >= limits.monthlyLimit) {
+      if (usage.monthly + sent >= limits.monthlyLimit) {
         failed++;
         continue;
       }
@@ -108,13 +107,6 @@ export async function POST(request: NextRequest) {
       }
 
       await humanDelay("broadcast");
-    }
-
-    if (sent > 0) {
-      await prisma.subscription.update({
-        where: { userId: msg.userId },
-        data: { monthlySentCount: { increment: sent } },
-      });
     }
 
     const deliveryStatus = failed === recipients.length ? "failed" : sent > 0 ? "sent" : "failed";

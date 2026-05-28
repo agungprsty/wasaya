@@ -6,6 +6,8 @@ import crypto from "crypto";
 import { rateLimit } from "@/lib/rate-limit";
 import { validatePhone } from "@/lib/phone-utils";
 import { humanDelay } from "@/lib/delay-engine";
+import { getUserTier, getTierLimits, getDailyLimit } from "@/lib/api-tier";
+import { getUsage } from "@/lib/usage";
 
 export async function POST(request: NextRequest) {
   const { error, user } = await requireUser(request);
@@ -33,6 +35,42 @@ export async function POST(request: NextRequest) {
   }
 
   const deviceId = body.deviceId || "main";
+
+  const tier = await getUserTier(user!.userId);
+  const limits = getTierLimits(tier);
+  if (!limits.broadcast) {
+    return NextResponse.json(
+      {
+        error: "Fitur broadcast massal hanya tersedia di paket Pro.",
+        upgrade_url: "/pricing",
+      },
+      { status: 403 },
+    );
+  }
+
+  const [usage, dbUser] = await Promise.all([
+    getUsage(user!.userId),
+    prisma.user.findUnique({ where: { id: user!.userId }, select: { createdAt: true } }),
+  ]);
+  const dailyLimit = await getDailyLimit(tier, dbUser?.createdAt ?? new Date());
+  if (usage.daily + messages.length > dailyLimit) {
+    return NextResponse.json(
+      {
+        error: `Batas harian tercapai. Kamu sudah menggunakan ${usage.daily}/${dailyLimit} pesan hari ini.`,
+      },
+      { status: 429 },
+    );
+  }
+  if (usage.monthly + messages.length > limits.monthlyLimit) {
+    return NextResponse.json(
+      {
+        error: `Batas bulanan tercapai (${usage.monthly}/${limits.monthlyLimit}).`,
+        upgrade_url: "/pricing",
+      },
+      { status: 429 },
+    );
+  }
+
   const results: { to: string; status: string; error?: string }[] = [];
 
   for (const { to, body: msgBody, location } of messages) {

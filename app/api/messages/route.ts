@@ -5,6 +5,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { validatePhone } from "@/lib/phone-utils";
 import { getUserTier, getTierLimits, getDailyLimit } from "@/lib/api-tier";
 import { enqueueMessage } from "@/lib/message-queue";
+import { getUsage } from "@/lib/usage";
 import { toJID } from "@/lib/whatsapp";
 
 export async function GET(request: NextRequest) {
@@ -66,28 +67,26 @@ export async function POST(request: NextRequest) {
     return toJID(phoneCheck.normalized);
   });
 
-  const [sub, dbUser] = await Promise.all([
-    prisma.subscription.findUnique({ where: { userId: user!.userId } }),
+  const [usage, dbUser] = await Promise.all([
+    getUsage(user!.userId),
     prisma.user.findUnique({ where: { id: user!.userId }, select: { createdAt: true } }),
   ]);
-  const monthlySent = sub?.monthlySentCount ?? 0;
 
   const dailyLimit = await getDailyLimit(tier, dbUser?.createdAt ?? new Date());
-  const dailySent = sub?.dailySentCount ?? 0;
-  if (dailySent + jids.length > dailyLimit) {
+  if (usage.daily + jids.length > dailyLimit) {
     return NextResponse.json(
       {
-        error: `Batas harian tercapai (${dailySent}/${dailyLimit} pesan/hari). Lanjut bulan depan atau upgrade ke Pro untuk ${limits.monthlyLimit === 500 ? "5.000" : "lebih banyak"} pesan/bulan.`,
+        error: `Batas harian tercapai (${usage.daily}/${dailyLimit} pesan/hari). Lanjut bulan depan atau upgrade ke Pro untuk ${limits.monthlyLimit === 500 ? "5.000" : "lebih banyak"} pesan/bulan.`,
         upgrade_url: "/pricing",
       },
       { status: 429 },
     );
   }
 
-  if (monthlySent + jids.length > limits.monthlyLimit) {
+  if (usage.monthly + jids.length > limits.monthlyLimit) {
     return NextResponse.json(
       {
-        error: `Batas bulanan tercapai (${monthlySent}/${limits.monthlyLimit}). Upgrade ke Pro untuk ${limits.monthlyLimit === 500 ? "5.000" : "lebih banyak"} pesan/bulan.`,
+        error: `Batas bulanan tercapai (${usage.monthly}/${limits.monthlyLimit}). Upgrade ke Pro untuk ${limits.monthlyLimit === 500 ? "5.000" : "lebih banyak"} pesan/bulan.`,
         upgrade_url: "/pricing",
       },
       { status: 429 },

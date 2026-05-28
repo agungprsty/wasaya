@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma.subscription.findUnique({
         where: { userId: payload.userId },
-        select: { tier: true, dailySentCount: true, monthlySentCount: true },
+        select: { tier: true },
       }),
     ]);
 

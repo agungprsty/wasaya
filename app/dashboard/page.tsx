@@ -53,8 +53,10 @@ export default function DashboardPage() {
       setWebhookUrl(s.settings?.webhookUrl || "");
       if (s.subscription) {
         setTier(s.subscription.tier ?? "free");
-        setDailySent(s.subscription.dailySentCount ?? 0);
-        setMonthlySent(s.subscription.monthlySentCount ?? 0);
+      }
+      if (s.usage) {
+        setDailySent(s.usage.daily ?? 0);
+        setMonthlySent(s.usage.monthly ?? 0);
       }
     });
   }, [days]);
@@ -66,7 +68,7 @@ export default function DashboardPage() {
   const dailyPct = dailyLimit === Infinity ? 0 : Math.min(100, Math.round((dailySent / dailyLimit) * 100));
   const monthlyPct = monthlyLimit === Infinity ? 0 : Math.min(100, Math.round((monthlySent / monthlyLimit) * 100));
 
-  const maxVal = analytics
+  const maxVal = analytics?.daily?.length
     ? Math.max(
         ...analytics.daily.flatMap((d) => [d.sent + d.delivered + d.failed + d.received]),
         1
@@ -78,10 +80,10 @@ export default function DashboardPage() {
   const totalSent = summary?.totalSent ?? 0;
   const totalReceived = summary?.totalReceived ?? 0;
   const totalFailed = summary?.totalFailed ?? 0;
-  const totalAll = totalSent + totalReceived + totalFailed || 1;
-  const sentDeg = (totalSent / totalAll) * 360;
-  const receivedDeg = (totalReceived / totalAll) * 360;
-  const failedDeg = totalFailed > 0 ? (totalFailed / totalAll) * 360 : 0;
+  const totalAll = totalSent + totalReceived + totalFailed;
+  const deg = (val: number) => totalAll > 0 ? (val / totalAll) * 360 : 0;
+  const sentDeg = deg(totalSent);
+  const receivedDeg = deg(totalReceived);
 
   return (
     <div className="mx-auto w-full max-w-7xl px-6 py-10">
@@ -126,7 +128,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {analytics && analytics.daily.length > 0 && (
+      {analytics?.daily && analytics.daily.length > 0 && (
         <div className="mb-10 rounded-xl border border-[#DCF8C6] bg-white p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-semibold text-[#075E54]">Message Trend ({days} days)</h2>
@@ -146,7 +148,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-end gap-1.5" style={{ height: 150 }}>
-            {analytics.daily.map((d) => {
+            {analytics!.daily.map((d) => {
               const sentH = d.sent + d.delivered;
               const receivedH = d.received;
               const failedH = d.failed;
@@ -199,14 +201,20 @@ export default function DashboardPage() {
         <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
           <h2 className="text-base font-semibold text-[#075E54]">Distribution</h2>
           <div className="mt-5 flex items-center justify-center">
-            <div className="relative h-32 w-32">
-              <div
-                className="h-full w-full rounded-full"
-                style={{
-                  background: `conic-gradient(#25D366 0deg ${sentDeg}deg, #60A5FA ${sentDeg}deg ${sentDeg + receivedDeg}deg, #F87171 ${sentDeg + receivedDeg}deg 360deg)`,
-                }}
-              />
-            </div>
+            {totalAll > 0 ? (
+              <div className="relative h-32 w-32">
+                <div
+                  className="h-full w-full rounded-full"
+                  style={{
+                    background: `conic-gradient(#25D366 0deg ${sentDeg}deg, #60A5FA ${sentDeg}deg ${sentDeg + receivedDeg}deg, #F87171 ${sentDeg + receivedDeg}deg 360deg)`,
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex h-32 w-32 items-center justify-center rounded-full border-2 border-dashed border-zinc-200">
+                <span className="text-xs text-zinc-400">Belum ada data</span>
+              </div>
+            )}
           </div>
           <div className="mt-4 flex justify-center gap-5 text-xs">
             <span className="flex items-center gap-1.5">
@@ -217,12 +225,10 @@ export default function DashboardPage() {
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-400" />
               Received {totalReceived}
             </span>
-            {totalFailed > 0 && (
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-400" />
-                Failed {totalFailed}
-              </span>
-            )}
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-400" />
+              Failed {totalFailed}
+            </span>
           </div>
         </div>
 

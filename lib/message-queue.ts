@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { Queue, Worker, Job } from "bullmq";
 import { redis } from "@/lib/redis";
 import { whatsappManager } from "@/lib/whatsapp";
-import { getTierLimits } from "@/lib/api-tier";
 import { safetyMonitor } from "@/lib/safety-monitor";
 
 export interface SendJobData {
@@ -56,7 +55,7 @@ const tierRunning: Record<string, number> = {
 };
 
 const PER_CONVERSATION_LIMITS: Record<string, { maxPerWindow: number; windowMinutes: number }> = {
-  free: { maxPerWindow: 5, windowMinutes: 10 },
+  free: { maxPerWindow: 10, windowMinutes: 10 },
   pro: { maxPerWindow: 10, windowMinutes: 5 },
   enterprise: { maxPerWindow: 20, windowMinutes: 1 },
 };

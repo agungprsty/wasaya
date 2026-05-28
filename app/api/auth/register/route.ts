@@ -24,9 +24,14 @@ export async function POST(request: NextRequest) {
       data: { name, email, password: hashed },
     });
 
-    await prisma.whatsAppSession.create({
-      data: { userId: user.id, deviceId: "main", name: "Main Device", status: "disconnected" },
-    });
+    await Promise.all([
+      prisma.whatsAppSession.create({
+        data: { userId: user.id, deviceId: "main", name: "Main Device", status: "disconnected" },
+      }),
+      prisma.subscription.create({
+        data: { userId: user.id },
+      }),
+    ]);
 
     const token = signToken({ userId: user.id, email: user.email });
     const response = NextResponse.json({

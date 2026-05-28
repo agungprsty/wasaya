@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/api-auth";
+import { getUsage } from "@/lib/usage";
 
 export async function GET(request: NextRequest) {
   const { error, user } = await requireUser(request);
@@ -11,16 +12,22 @@ export async function GET(request: NextRequest) {
     settings = await prisma.settings.create({ data: { userId: user!.userId } });
   }
 
-  const subscription = await prisma.subscription.findUnique({ where: { userId: user!.userId } });
+  let subscription = await prisma.subscription.findUnique({ where: { userId: user!.userId } });
+  if (!subscription) {
+    subscription = await prisma.subscription.create({ data: { userId: user!.userId } });
+  }
 
   const device = await prisma.whatsAppSession.findUnique({
     where: { userId_deviceId: { userId: user!.userId, deviceId: "main" } },
     select: { proxyUrl: true, isQuarantined: true, safetyViolations: true },
   });
 
+  const usage = await getUsage(user!.userId);
+
   return NextResponse.json({
     settings,
     subscription,
+    usage,
     proxyUrl: device?.proxyUrl ?? null,
     isQuarantined: device?.isQuarantined ?? false,
     safetyViolations: device?.safetyViolations ?? 0,

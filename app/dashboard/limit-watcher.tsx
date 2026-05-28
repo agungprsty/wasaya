@@ -24,11 +24,12 @@ export default function LimitWatcher() {
         const res = await fetch("/api/settings");
         const data = await res.json().catch(() => ({}));
         const sub = data.subscription;
-        if (!sub) return;
+        const usage = data.usage;
+        if (!sub || !usage) return;
 
         const tier = sub.tier || "free";
-        const dailySent = sub.dailySentCount ?? 0;
-        const monthlySent = sub.monthlySentCount ?? 0;
+        const dailySent = usage.daily ?? 0;
+        const monthlySent = usage.monthly ?? 0;
         const dailyLimit = TIER_DAILY_LIMITS[tier] ?? 50;
         const monthlyLimit = TIER_MONTHLY_LIMITS[tier] ?? 500;
 

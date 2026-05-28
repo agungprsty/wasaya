@@ -1,8 +1,8 @@
 # Testing Checklist — WAGateway
 
 ## 1. Auth & Session
-- [ ] Login — email/password valid → redirect ke dashboard
-- [ ] Login — email/password salah → tampil error
+- [x] Login — email/password valid → redirect ke dashboard
+- [x] Login — email/password salah → tampil error
 - [ ] Session expired → redirect ke `/login`
 - [ ] Logout → cookie cleared, redirect ke `/login`
 - [ ] Refresh token/blum expiry → tetap di dashboard, data user terload
@@ -11,24 +11,24 @@
 - [ ] Nav items aktif sesuai path (highlight hijau)
 - [ ] Safety indicator dot = hijau (<50%), kuning (50-80%), merah (>80%)
 - [ ] Progress bar harian sesuai persentase
-- [ ] Tier badge = Free / Pro / Enterprise
-- [ ] Free user → tombol "Upgrade" muncul
+- [x] Tier badge = Free / Pro / Enterprise
+- [x] Free user → tombol "Upgrade" muncul
 - [ ] Pro/Enterprise → tombol "Upgrade" tidak muncul
-- [ ] Mobile sidebar bisa buka/tutup (hamburger)
-- [ ] User name + email + initial avatar tampil
+- [x] Mobile sidebar bisa buka/tutup (hamburger)
+- [x] User name + email + initial avatar tampil
 
 ## 3. Dashboard Overview
 
 ### Summary Cards
-- [ ] Total Messages, Sent, Received, Success Rate
-- [ ] Angka sesuai data analitik
-- [ ] Success Rate hijau (≥80%), kuning (50-79%), merah (<50%)
+- [x] Total Messages, Sent, Received, Success Rate
+- [x] Angka sesuai data analitik
+- [x] Success Rate hijau (≥80%), kuning (50-79%), merah (<50%)
 
 ### Message Trend Chart
-- [ ] Bar chart muncul untuk 7 atau 30 hari
-- [ ] Warna: hijau (sent), biru (received), merah (failed)
-- [ ] Hover tooltip menampilkan angka
-- [ ] Dropdown 7/30 hari → reload chart
+- [x] Bar chart muncul untuk 7 atau 30 hari
+- [x] Warna: hijau (sent), biru (received), merah (failed)
+- [x] Hover tooltip menampilkan angka
+- [x] Dropdown 7/30 hari → reload chart
 
 ### Distribution Donut
 - [ ] Donut chart sent/received/failed muncul
@@ -41,19 +41,19 @@
 - [ ] Limit Infinity (Enterprise) → "∞" tanpa progress bar
 
 ### Insights
-- [ ] Busiest Hour menampilkan jam tersibuk
-- [ ] Top Recipient menampilkan nomor tujuan terbanyak
-- [ ] Success Rate konsisten dengan summary card
+- [x] Busiest Hour menampilkan jam tersibuk
+- [x] Top Recipient menampilkan nomor tujuan terbanyak
+- [x] Success Rate konsisten dengan summary card
 
 ### Quick Start
-- [ ] Checklist item centang jika sudah dilakukan
-- [ ] Webhook status berubah setelah setting disimpan
+- [x] Checklist item centang jika sudah dilakukan
+- [x] Webhook status berubah setelah setting disimpan
 
 ## 4. Settings
 
 ### Webhook
-- [ ] Input URL + secret tersimpan
-- [ ] Tombol "Test Webhook" → feedback sukses/gagal
+- [x] Input URL + secret tersimpan
+- [x] Tombol "Test Webhook" → feedback sukses/gagal
 
 ### Auto Reply
 - [ ] Toggle aktif/nonaktif

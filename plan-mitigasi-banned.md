@@ -873,6 +873,78 @@ const finalDelay = Math.min(maxDelay, Math.max(minDelay, calculatedDelay));
 
 ---
 
+---
+
+## 🔄 Fase 7: Sinkronisasi Usage Counter — Source of Truth Unifikasi
+
+**Masalah:** `dailySentCount`/`monthlySentCount` di tabel `Subscription` tidak sinkron dengan jumlah pesan sebenarnya di `WhatsAppMessage`. Counter hanya di-increment di queue worker (`lib/message-queue.ts`), tapi broadcast, auto-reply, dan retry memanggil `sendMessage()` langsung tanpa lewat queue.
+
+### Solusi: Derive Usage dari `WhatsAppMessage` (Opsi C)
+
+Hapus counter terpisah, hitung langsung dari tabel `WhatsAppMessage` setiap kali butuh.
+
+#### Perubahan Schema Prisma
+```prisma
+model Subscription {
+  id      String   @id @default(uuid())
+  userId  String   @unique
+  tier    String   @default("free")
+  // ✂️ HAPUS: monthlySentCount, dailySentCount, lastDailyReset, lastMonthlyReset
+  accountAge String   @default("newborn")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+```
+
+#### File Baru: `lib/usage.ts`
+Helper untuk query usage dari `WhatsAppMessage`:
+```typescript
+export async function getUsage(userId: string) {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const whereSent = { userId, status: { in: ["sent", "delivered", "read"] as const } };
+  const [daily, monthly] = await Promise.all([
+    prisma.whatsAppMessage.count({ where: { ...whereSent, timestamp: { gte: startOfDay } } }),
+    prisma.whatsAppMessage.count({ where: { ...whereSent, timestamp: { gte: startOfMonth } } }),
+  ]);
+  return { daily, monthly };
+}
+```
+
+#### File yang Diubah/Dihapus
+
+| File | Perubahan |
+|------|-----------|
+| `prisma/schema.prisma` | Hapus 4 kolom dari `Subscription` |
+| `lib/usage.ts` | **BARU** — `getUsage()` helper |
+| `lib/message-queue.ts` | Hapus block increment (line 109-115) |
+| `app/api/messages/route.ts` | Ganti `sub?.dailySentCount` dgn `usage.daily` |
+| `app/api/broadcast/route.ts` | Tambah limit check pakai `getUsage()` |
+| `app/api/messages/retry/route.ts` | Tambah limit check pakai `getUsage()` |
+| `app/api/cron/process-scheduled/route.ts` | Ganti `sub?.monthlySentCount` dgn `usage.monthly` |
+| `app/api/settings/route.ts` | Return `{ daily, monthly }` dari `getUsage()` bukan dari `Subscription` |
+| `app/api/analytics/route.ts` | `getMonthlyUsage()` panggil `getUsage()` |
+| `app/api/auth/me/route.ts` | Hapus `dailySentCount`/`monthlySentCount` dari query |
+| `app/api/cron/reset-daily-counts/route.ts` | **HAPUS** (tidak perlu reset) |
+| `app/api/cron/reset-monthly-counts/route.ts` | **HAPUS** (tidak perlu reset) |
+| Dashboard `page.tsx` | Baca `s.usage.daily` bukan `s.subscription.dailySentCount` |
+| `limit-watcher.tsx` | Baca `data.usage.daily` bukan `sub.dailySentCount` |
+
+#### Keuntungan
+- ✅ **Zero sync issue** — tidak mungkin tidak sinkron
+- ✅ Semua jalur otomatis terhitung (broadcast, auto-reply, retry, fallback)
+- ✅ Tidak perlu cron reset
+- ✅ Reset otomatis (query berdasarkan tanggal)
+- ✅ 4 kolom + 2 file cron dihapus
+
+#### Performa
+Query `COUNT` dengan index `(userId, status, timestamp)` → sub-millisecond untuk ribuan pesan.
+
+---
+
 ## Cara Memulai
 
 ```bash
