@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/api-auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { validatePhone } from "@/lib/phone-utils";
-import { getUserTier, getTierLimits } from "@/lib/api-tier";
+import { getUserTier, getTierLimits, getDailyLimit } from "@/lib/api-tier";
 import { enqueueMessage } from "@/lib/message-queue";
 import { toJID } from "@/lib/whatsapp";
 
@@ -66,8 +66,23 @@ export async function POST(request: NextRequest) {
     return toJID(phoneCheck.normalized);
   });
 
-  const sub = await prisma.subscription.findUnique({ where: { userId: user!.userId } });
+  const [sub, dbUser] = await Promise.all([
+    prisma.subscription.findUnique({ where: { userId: user!.userId } }),
+    prisma.user.findUnique({ where: { id: user!.userId }, select: { createdAt: true } }),
+  ]);
   const monthlySent = sub?.monthlySentCount ?? 0;
+
+  const dailyLimit = await getDailyLimit(tier, dbUser?.createdAt ?? new Date());
+  const dailySent = sub?.dailySentCount ?? 0;
+  if (dailySent + jids.length > dailyLimit) {
+    return NextResponse.json(
+      {
+        error: `Batas harian tercapai (${dailySent}/${dailyLimit} pesan/hari). Lanjut bulan depan atau upgrade ke Pro untuk ${limits.monthlyLimit === 500 ? "5.000" : "lebih banyak"} pesan/bulan.`,
+        upgrade_url: "/pricing",
+      },
+      { status: 429 },
+    );
+  }
 
   if (monthlySent + jids.length > limits.monthlyLimit) {
     return NextResponse.json(

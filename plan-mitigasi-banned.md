@@ -454,7 +454,7 @@ async function checkThrottle(userId: string, jid: string, tier: string): Promise
 
 ---
 
-### Fase 4: Edukasi & Batasan di Tingkat Pengguna (UI) — ❌ BELUM
+### Fase 4: Edukasi & Batasan di Tingkat Pengguna (UI) — ✅ SELESAI
 **Tujuan:** Membatasi pengguna dari perilaku berisiko tinggi melalui UI bertingkat sesuai tier.
 
 **Dampak Anti-Ban:** 🟢 Sedang — mencegah user menyabot diri sendiri
@@ -805,14 +805,14 @@ model WhatsAppSession {
 | `app/api/settings/route.ts` | ✅ Diubah | 1 | Field baru msPerChar, readDelayMs, typingEnabled, dll |
 | `app/api/messages/route.ts` | ✅ Diubah | 3 | Enqueue via BullMQ + daily/monthly limit + tolak broadcast (Free) |
 | `app/api/cron/process-scheduled/route.ts` | ✅ Diubah | 2, 3 | Enqueue per recipient via BullMQ + humanDelay broadcast |
-| `app/api/cron/reset-daily-counts/route.ts` | ❌ **BARU** | 6 | Reset daily tiap 00:00 |
-| `app/api/cron/reset-monthly-counts/route.ts` | ❌ **BARU** | 6 | Reset monthly tiap 01:00 tgl 1 |
-| `app/api/analytics/route.ts` | ❌ **BARU** | 4 | Statistik harian + bulanan (Pro+) |
+| `app/api/cron/reset-daily-counts/route.ts` | ✅ **BARU** | 6 | Reset daily tiap 00:00 |
+| `app/api/cron/reset-monthly-counts/route.ts` | ✅ **BARU** | 6 | Reset monthly tiap 01:00 tgl 1 |
+| `app/api/analytics/route.ts` | ✅ **BARU** | 4 | Statistik harian + bulanan (Pro+) |
 | `prisma/schema.prisma` | ✅ Diubah | 1, 3, 4, 6 | Model Subscription + field Settings & WhatsAppSession |
 | `package.json` | ✅ Diubah | 3 | Tambah `bullmq`, `ioredis`, `tsx` |
 | `.env.example` | ✅ Diubah | 3 | Tambah `REDIS_URL` |
 | `docker-compose.yml` | ✅ Diubah | 3 | Tambah service redis |
-| Dashboard settings page | ❌ Diubah | 4 | Panel per tier; Broadcast digembok (Free) |
+| Dashboard settings page | ✅ Diubah | 4 | Panel per tier; Broadcast digembok (Free) |
 | Dashboard layout/sidebar | ❌ Diubah | 4 | Safety indicator + upgrade prompt |
 | Dashboard analytics card | ❌ Diubah | 4 | Grafik sends + ratio + tren (Pro+) |
 
@@ -901,5 +901,5 @@ Fase 1 → Fase 2 → Fase 3 → Fase 4 → Fase 5 → Fase 6
 - [x] Free: daily=50, monthly=500, broadcast=403, concurrency=1 — ✅ enforcement API (messages/route.ts + api-tier.ts)
 - [x] Pro: daily=200, monthly=5000, broadcast=aktif, concurrency=2 — ✅ enforcement API
 - [ ] Enterprise: unlimited + proxy + custom msPerChar — ❌ proxy + limit enforcement API siap, UI custom msPerChar belum
-- [ ] Menu Broadcast Free: 🔒 gembok + modal upgrade — ❌ UI belum
-- [ ] Cron reset daily (00:00) + monthly (01:00 tgl 1) — ❌ route belum dibuat
+- [x] Menu Broadcast Free: 🔒 gembok + modal upgrade — ✅ UI siap
+- [x] Cron reset daily (00:00) + monthly (01:00 tgl 1) — ✅ route sudah dibuat

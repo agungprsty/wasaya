@@ -11,14 +11,16 @@ export async function GET(request: NextRequest) {
     settings = await prisma.settings.create({ data: { userId: user!.userId } });
   }
 
-  return NextResponse.json({ settings });
+  const subscription = await prisma.subscription.findUnique({ where: { userId: user!.userId } });
+
+  return NextResponse.json({ settings, subscription });
 }
 
 export async function PUT(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
 
-  const { webhookUrl, webhookSecret, autoReplyText, autoReplyActive, watermarkText, watermarkActive, msPerChar, readDelayMs, typingEnabled, broadcastEnabled, concurrency, adminNumbers } = await request.json();
+  const { webhookUrl, webhookSecret, autoReplyText, autoReplyActive, watermarkText, watermarkActive, msPerChar, readDelayMs, typingEnabled, broadcastEnabled, concurrency, adminNumbers, safetyMode, enterpriseCustomSettings } = await request.json();
 
   const data: Record<string, unknown> = {};
   if (webhookUrl !== undefined) data.webhookUrl = webhookUrl;
@@ -33,6 +35,8 @@ export async function PUT(request: NextRequest) {
   if (broadcastEnabled !== undefined) data.broadcastEnabled = broadcastEnabled;
   if (concurrency !== undefined) data.concurrency = concurrency;
   if (adminNumbers !== undefined) data.adminNumbers = adminNumbers;
+  if (safetyMode !== undefined) data.safetyMode = safetyMode;
+  if (enterpriseCustomSettings !== undefined) data.enterpriseCustomSettings = enterpriseCustomSettings;
 
   const settings = await prisma.settings.upsert({
     where: { userId: user!.userId },

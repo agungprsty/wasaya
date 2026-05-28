@@ -104,8 +104,10 @@ model Settings {
   readDelayMs      Int    @default(1500)
   typingEnabled    Boolean @default(true)
   broadcastEnabled Boolean @default(false)
-  concurrency      Int    @default(1)
-  adminNumbers     String[] @default([])
+  concurrency                Int    @default(1)
+  adminNumbers               String[] @default([])
+  safetyMode                 String   @default("normal")
+  enterpriseCustomSettings   Json?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
