@@ -46,6 +46,7 @@ class BaileysManager {
   private reconnectRetries: Map<string, number> = new Map();
   private knownSessions: Map<string, { userId: string; deviceId: string }> = new Map();
   private healthCheckTimer: NodeJS.Timeout | null = null;
+  private pendingPairings: Map<string, string> = new Map();
 
   private async ensureInitialized() {
     if (this.initialized) return;
@@ -155,6 +156,19 @@ class BaileysManager {
       if (this.connecting.get(key) === promise) {
         this.connecting.delete(key);
       }
+    }
+  }
+
+  async startPairing(userId: string, phone: string, deviceId = "main"): Promise<string | null> {
+    const key = makeKey(userId, deviceId);
+    this.pendingPairings.set(key, phone);
+    try {
+      await this.startConnect(userId, 30_000, deviceId);
+      const code = this.qrCache.get(key);
+      return code ?? null;
+    } catch {
+      this.pendingPairings.delete(key);
+      return null;
     }
   }
 
@@ -340,6 +354,21 @@ class BaileysManager {
         }).catch(() => {});
       }
     });
+
+    const pairingPhone = this.pendingPairings.get(key);
+    if (pairingPhone) {
+      this.pendingPairings.delete(key);
+      try {
+        const code = await sock.requestPairingCode(pairingPhone);
+        const formattedCode = code.match(/.{1,4}/g)?.join("-") || code;
+        await prisma.whatsAppSession.upsert({
+          where: { userId_deviceId: { userId, deviceId } },
+          create: { userId, deviceId, status: "connecting", qrCode: formattedCode },
+          update: { qrCode: formattedCode },
+        });
+        this.qrCache.set(key, formattedCode);
+      } catch {}
+    }
 
     try {
       if (timeoutMs > 0) {
