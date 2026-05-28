@@ -5,6 +5,8 @@ import { processChatbot, processAutoReply, markAutoReplySent } from "@/lib/chatb
 import { sleep, calculateTypingDelay, jitterDelay, humanDelay } from "@/lib/delay-engine";
 import { waLogger } from "@/lib/logger";
 import { usePrismaAuthState } from "@/lib/baileys-auth";
+import { safetyMonitor } from "@/lib/safety-monitor";
+import { SocksProxyAgent } from "socks-proxy-agent";
 import makeWASocket, {
   DisconnectReason,
   fetchLatestWaWebVersion,
@@ -232,12 +234,22 @@ class BaileysManager {
       this.saveCredsFns.set(key, saveCreds);
     }
 
-    const sock = makeWASocket({
+    const deviceSession = await prisma.whatsAppSession.findUnique({
+      where: { userId_deviceId: { userId, deviceId } },
+    });
+
+    const socketOptions: Record<string, unknown> = {
       auth: state,
       version: await getLatestVersion(),
       logger: waLogger,
       emitOwnEvents: false,
-    });
+    };
+
+    if (deviceSession?.proxyUrl) {
+      socketOptions.agent = new SocksProxyAgent(deviceSession.proxyUrl);
+    }
+
+    const sock = makeWASocket(socketOptions as any);
 
     sock.ev.on("creds.update", () => {
       const p = saveCreds().catch(() => {});
@@ -300,19 +312,18 @@ class BaileysManager {
 
         const isManual = this.manualDisconnects.has(key);
         if (!isManual) {
-          const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-          if (statusCode !== DisconnectReason.loggedOut) {
-            await (this.credsSavePromises.get(key) ?? Promise.resolve());
-            await (this.saveCredsFns.get(key)?.() ?? Promise.resolve());
-            const retries = this.reconnectRetries.get(key) || 0;
-            if (retries < MAX_RECONNECT_RETRIES) {
-              const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, retries);
-              this.reconnectRetries.set(key, retries + 1);
-              setTimeout(() => {
-                this.startConnect(userId, 0, deviceId).catch(() => {});
-              }, delay);
-              return;
-            }
+          const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode ?? 0;
+          safetyMonitor.recordError(userId, deviceId, statusCode).catch(() => {});
+          await (this.credsSavePromises.get(key) ?? Promise.resolve());
+          await (this.saveCredsFns.get(key)?.() ?? Promise.resolve());
+          const retries = this.reconnectRetries.get(key) || 0;
+          if (retries < MAX_RECONNECT_RETRIES) {
+            const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, retries);
+            this.reconnectRetries.set(key, retries + 1);
+            setTimeout(() => {
+              this.startConnect(userId, 0, deviceId).catch(() => {});
+            }, delay);
+            return;
           }
         }
 
@@ -625,6 +636,11 @@ class BaileysManager {
   ) {
     await this.ensureInitialized().catch(() => {});
     if (body) body = await this.applyWatermark(userId, body);
+
+    const isQ = await safetyMonitor.isQuarantined(userId, deviceId);
+    if (isQ) {
+      throw new Error("Device is quarantined due to safety violations");
+    }
 
     const key = makeKey(userId, deviceId);
     const session = await prisma.whatsAppSession.findUnique({

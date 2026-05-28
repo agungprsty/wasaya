@@ -3,6 +3,7 @@ import { Queue, Worker, Job } from "bullmq";
 import { redis } from "@/lib/redis";
 import { whatsappManager } from "@/lib/whatsapp";
 import { getTierLimits } from "@/lib/api-tier";
+import { safetyMonitor } from "@/lib/safety-monitor";
 
 export interface SendJobData {
   userId: string;
@@ -80,6 +81,11 @@ export function startWorker(): Worker {
     "wa-send",
     async (job) => {
       const { userId, tier, jid, body, media, deviceId, location } = job.data;
+
+      const quarantined = await safetyMonitor.isQuarantined(userId, deviceId || "main");
+      if (quarantined) {
+        throw new Error(`User ${userId} is quarantined`);
+      }
 
       const maxConcurrent = TIER_CONCURRENCY[tier] || 1;
 

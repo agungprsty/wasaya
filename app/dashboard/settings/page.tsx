@@ -20,6 +20,9 @@ interface SettingsData {
   concurrency: number;
   adminNumbers: string[];
   safetyMode: string;
+  msPerChar: number;
+  readDelayMs: number;
+  typingEnabled: boolean;
   enterpriseCustomSettings: Record<string, unknown> | null;
 }
 
@@ -50,6 +53,9 @@ export default function SettingsPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [ratio, setRatio] = useState<{ outbound: number; inbound: number; ratio: string } | null>(null);
+  const [proxyUrl, setProxyUrl] = useState("");
+  const [isQuarantined, setIsQuarantined] = useState(false);
+  const [safetyViolations, setSafetyViolations] = useState(0);
 
   useEffect(() => {
     Promise.all([
@@ -58,6 +64,9 @@ export default function SettingsPage() {
     ]).then(([settingsData, ratioData]) => {
       if (settingsData.settings) setSettings(settingsData.settings);
       if (settingsData.subscription) setSubscription(settingsData.subscription);
+      if (typeof settingsData.proxyUrl === "string") setProxyUrl(settingsData.proxyUrl);
+      if (typeof settingsData.isQuarantined === "boolean") setIsQuarantined(settingsData.isQuarantined);
+      if (typeof settingsData.safetyViolations === "number") setSafetyViolations(settingsData.safetyViolations);
       if (ratioData.data) setRatio(ratioData.data);
     });
   }, []);
@@ -107,7 +116,11 @@ export default function SettingsPage() {
         concurrency: settings.concurrency,
         adminNumbers: settings.adminNumbers,
         safetyMode: settings.safetyMode,
+        msPerChar: settings.msPerChar,
+        readDelayMs: settings.readDelayMs,
+        typingEnabled: settings.typingEnabled,
         enterpriseCustomSettings: settings.enterpriseCustomSettings,
+        proxyUrl: proxyUrl || null,
       }),
     });
     setSaving(false);
@@ -196,6 +209,24 @@ export default function SettingsPage() {
                 : "Penggunaan masih aman. Lanjutkan dengan pengaturan saat ini."}
           </p>
         </div>
+
+        {/* Quarantine Warning */}
+        {isQuarantined && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+              </svg>
+              <span className="text-sm font-medium text-red-700">
+                Mode Darurat — Akun DIKARANTINA
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-red-600">
+              Terdeteksi {safetyViolations} pelanggaran keamanan. Pengiriman pesan dihentikan sementara.
+              {tier !== "enterprise" && " Status akan dirilis otomatis dalam 12-24 jam."}
+            </p>
+          </div>
+        )}
 
         {/* Outbound-Inbound Ratio */}
         {ratio && (
@@ -345,7 +376,7 @@ export default function SettingsPage() {
         <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
           <h2 className="text-sm font-semibold text-[#075E54]">Advanced</h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Safety controls, broadcast settings, and concurrency limits.
+            Safety controls, broadcast settings, and human mimicry.
           </p>
 
           <div className="mt-5 space-y-5">
@@ -465,6 +496,99 @@ export default function SettingsPage() {
                 Maks: {tier === "free" ? "1" : tier === "pro" ? "2" : "10"}
               </p>
             </div>
+
+            {/* Proxy URL — Enterprise Only */}
+            {tier === "enterprise" && (
+              <div>
+                <label htmlFor="proxyUrl" className="block text-sm font-medium text-zinc-700">
+                  Proxy URL
+                </label>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  SOCKS5 proxy untuk mengisolasi IP perangkat. Contoh: <code className="text-xs">socks5://user:pass@host:1080</code>
+                </p>
+                <input
+                  id="proxyUrl"
+                  type="text"
+                  value={proxyUrl}
+                  onChange={(e) => setProxyUrl(e.target.value)}
+                  placeholder="socks5://user:pass@host:1080"
+                  className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15 font-mono"
+                />
+              </div>
+            )}
+
+            {/* Human Mimicry — Enterprise Only */}
+            {tier === "enterprise" && (
+              <div className="border-t border-[#DCF8C6] pt-5">
+                <h3 className="text-sm font-semibold text-[#075E54]">Human Mimicry</h3>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  Kontrol kecepatan dan delay pengiriman agar menyerupai manusia.
+                </p>
+
+                {/* msPerChar */}
+                <div className="mt-4">
+                  <label htmlFor="msPerChar" className="block text-sm font-medium text-zinc-700">
+                    Kecepatan Typing: {settings?.msPerChar ?? 100} ms / karakter
+                  </label>
+                  <input
+                    id="msPerChar"
+                    type="range"
+                    min={30}
+                    max={500}
+                    step={10}
+                    value={settings?.msPerChar ?? 100}
+                    onChange={(e) => updateField("msPerChar", parseInt(e.target.value))}
+                    className="mt-2 w-full accent-[#25D366]"
+                  />
+                  <div className="mt-1 flex justify-between text-xs text-zinc-400">
+                    <span>30 ms (cepat)</span>
+                    <span>500 ms (lambat)</span>
+                  </div>
+                </div>
+
+                {/* readDelayMs */}
+                <div className="mt-4">
+                  <label htmlFor="readDelayMs" className="block text-sm font-medium text-zinc-700">
+                    Delay Membaca: {settings?.readDelayMs ?? 1500} ms
+                  </label>
+                  <input
+                    id="readDelayMs"
+                    type="range"
+                    min={300}
+                    max={10000}
+                    step={100}
+                    value={settings?.readDelayMs ?? 1500}
+                    onChange={(e) => updateField("readDelayMs", parseInt(e.target.value))}
+                    className="mt-2 w-full accent-[#25D366]"
+                  />
+                  <div className="mt-1 flex justify-between text-xs text-zinc-400">
+                    <span>300 ms</span>
+                    <span>10.000 ms</span>
+                  </div>
+                </div>
+
+                {/* typingEnabled */}
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => updateField("typingEnabled", !settings?.typingEnabled)}
+                    className={`relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                      settings?.typingEnabled ? "bg-[#25D366]" : "bg-zinc-200"
+                    }`}
+                  >
+                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      settings?.typingEnabled ? "translate-x-4" : "translate-x-0"
+                    }`} />
+                  </button>
+                  <span className="text-sm text-zinc-700">
+                    {settings?.typingEnabled ? "Simulasi typing aktif" : "Simulasi typing nonaktif"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-400">
+                  Jika aktif, pesan akan dikirim dengan delay mengetik (msPerChar &#215; panjang pesan) ditambah delay membaca (readDelayMs) untuk setiap sesi.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

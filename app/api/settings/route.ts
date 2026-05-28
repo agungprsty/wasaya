@@ -13,14 +13,25 @@ export async function GET(request: NextRequest) {
 
   const subscription = await prisma.subscription.findUnique({ where: { userId: user!.userId } });
 
-  return NextResponse.json({ settings, subscription });
+  const device = await prisma.whatsAppSession.findUnique({
+    where: { userId_deviceId: { userId: user!.userId, deviceId: "main" } },
+    select: { proxyUrl: true, isQuarantined: true, safetyViolations: true },
+  });
+
+  return NextResponse.json({
+    settings,
+    subscription,
+    proxyUrl: device?.proxyUrl ?? null,
+    isQuarantined: device?.isQuarantined ?? false,
+    safetyViolations: device?.safetyViolations ?? 0,
+  });
 }
 
 export async function PUT(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
 
-  const { webhookUrl, webhookSecret, autoReplyText, autoReplyActive, watermarkText, watermarkActive, msPerChar, readDelayMs, typingEnabled, broadcastEnabled, concurrency, adminNumbers, safetyMode, enterpriseCustomSettings } = await request.json();
+  const { webhookUrl, webhookSecret, autoReplyText, autoReplyActive, watermarkText, watermarkActive, msPerChar, readDelayMs, typingEnabled, broadcastEnabled, concurrency, adminNumbers, safetyMode, enterpriseCustomSettings, proxyUrl } = await request.json();
 
   const data: Record<string, unknown> = {};
   if (webhookUrl !== undefined) data.webhookUrl = webhookUrl;
@@ -37,6 +48,13 @@ export async function PUT(request: NextRequest) {
   if (adminNumbers !== undefined) data.adminNumbers = adminNumbers;
   if (safetyMode !== undefined) data.safetyMode = safetyMode;
   if (enterpriseCustomSettings !== undefined) data.enterpriseCustomSettings = enterpriseCustomSettings;
+
+  if (proxyUrl !== undefined) {
+    await prisma.whatsAppSession.updateMany({
+      where: { userId: user!.userId, deviceId: "main" },
+      data: { proxyUrl },
+    });
+  }
 
   const settings = await prisma.settings.upsert({
     where: { userId: user!.userId },

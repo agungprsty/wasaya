@@ -14,16 +14,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
-      select: { id: true, name: true, email: true, avatar: true },
-    });
+    const [user, subscription] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: payload.userId },
+        select: { id: true, name: true, email: true, avatar: true },
+      }),
+      prisma.subscription.findUnique({
+        where: { userId: payload.userId },
+        select: { tier: true, dailySentCount: true, monthlySentCount: true },
+      }),
+    ]);
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ user });
+    return NextResponse.json({ user, subscription });
   } catch (error) {
     console.error("Me error:", error);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });

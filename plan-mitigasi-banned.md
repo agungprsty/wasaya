@@ -17,10 +17,9 @@
 | Pengaturan anti-ban di Settings model | ✅ Field sudah ada | Sedang — user tidak bisa dikonfigurasi/dibatasi |
 | Per-conversation rate limiting | ✅ Ada (Fase 3) | Sedang — spam ke 1 nomor bisa terjadi |
 | Daily & monthly send limit per user | ✅ Ada (Fase 3) | Rendah — hanya dikekang API rate limit (30/min) |
-| Monitoring adaptif (auto slow-down) | ❌ Belum (Fase 6) | Rendah — tidak ada respon otomatis terhadap sinyal bahaya |
-| BullMQ + Redis (production queue) | ✅ Ada (Fase 3) | Sangat Tinggi — in-memory queue riskan hilang saat restart/crash |
+| Monitoring adaptif (auto slow-down) | ✅ Ada (Fase 6) | Rendah — tidak ada respon otomatis terhadap sinyal bahaya |
 | Outbound-Inbound Ratio tracking | ✅ API endpoint + UI display (Fase 4) | Sedang — akun dengan ratio 10:1 (kirim:terima) mudah dideteksi |
-| Proxy per device | ❌ Field schema siap, integrasi belum (Fase 6) | Sedang — satu IP terbanned bisa lumpuhkan semua akun |
+| Proxy per device | ✅ Ada (Fase 6) | Sedang — satu IP terbanned bisa lumpuhkan semua akun |
 | Tiered pricing (Free/Pro/Enterprise) | ✅ Schema + enforcement API + UI siap (Fase 3-4) | Kritis — abuse dari free user bisa cemari IP server |
 | BullMQ priority queue (starvation protection) | ✅ Ada (Fase 3) | Sedang — antrean free user bisa blokir pesan Pro user |
 
@@ -604,7 +603,7 @@ if (Math.random() < 0.33) {
 
 ---
 
-### Fase 6: Monitoring Adaptif, Proxy, & Akun Aging — ❌ BELUM
+### Fase 6: Monitoring Adaptif, Proxy, & Akun Aging — ✅ SELESAI
 **Tujuan:** Deteksi sinyal awal banned, auto slow-down, isolasi akun dengan proxy.
 
 **Dampak Anti-Ban:** 🔴 Kritis
@@ -694,15 +693,15 @@ await prisma.subscription.updateMany({
 #### 6G. File yang Diubah
 | File | Perubahan |
 |------|-----------|
-| `lib/safety-monitor.ts` | **BARU** — monitoring + auto slow-down + tier-aware |
-| `lib/whatsapp.ts` | Panggil safety monitor; dukung proxyUrl (Enterprise) |
-| `lib/message-queue.ts` | Integrasi safety monitor (pause/resume queue per user) |
-| `lib/api-tier.ts` | Integrasi daily + monthly limit dengan akun aging |
-| `prisma/schema.prisma` | Tambah `proxyUrl`, `monthlySentCount`, `lastMonthlyReset`, field safety |
-| `app/api/settings/route.ts` | Status quarantine + proxy settings (Enterprise) |
-| `app/api/cron/reset-monthly-counts/route.ts` | **BARU** — reset monthly counter tiap awal bulan |
-| `app/api/cron/reset-daily-counts/route.ts` | **BARU** — reset daily counter tiap tengah malam |
-| Dashboard | Notifikasi quarantine + proxy config (Enterprise) |
+| `lib/safety-monitor.ts` | ✅ **BARU** — monitoring + auto slow-down + tier-aware + quarantine |
+| `lib/whatsapp.ts` | ✅ Panggil safety monitor di connection.update; proxyUrl via SocksProxyAgent |
+| `lib/message-queue.ts` | ✅ Quarantine check di worker sebelum proses job |
+| `lib/api-tier.ts` | ✅ Akun aging (sejak Fase 3) |
+| `prisma/schema.prisma` | ✅ safetyViolations, lastViolationAt, isQuarantined |
+| `app/api/settings/route.ts` | ✅ Proxy & quarantine status di GET; proxyUrl update di PUT |
+| `app/api/cron/reset-monthly-counts/route.ts` | ✅ **BARU** (Fase 4) |
+| `app/api/cron/reset-daily-counts/route.ts` | ✅ **BARU** (Fase 4) |
+| Dashboard settings | ✅ Notifikasi karantina + proxy config (Enterprise) |
 
 ---
 
@@ -806,11 +805,12 @@ model WhatsAppSession {
 | `lib/delay-engine.ts` | ✅ **BARU** | 2 | Profil delay + MS_PER_CHAR calculator + jitter + humanDelay() |
 | `lib/redis.ts` | ✅ **BARU** | 3 | Redis client instance |
 | `lib/message-queue.ts` | ✅ **BARU** | 3 | BullMQ queue + worker + tier priority + throttle |
-| `lib/safety-monitor.ts` | ❌ **BARU** | 6 | Monitoring adaptif + auto slow-down + ratio tracker |
+| `lib/safety-monitor.ts` | ✅ **BARU** | 6 | Monitoring adaptif + auto slow-down + ratio tracker + quarantine |
 | `lib/api-tier.ts` | ✅ **BARU** | 3, 4, 6 | Helper tier, daily/monthly limit, aging |
 | `instrumentation.ts` | ✅ **BARU** | 3 | Start BullMQ worker at app startup |
 | `lib/rate-limit.ts` | ❌ Diubah | 3 | Redis per-conversation throttle (tier-aware) — throttle di message-queue.ts |
-| `lib/whatsapp.ts` | ✅ Diubah | 5 | Random quoted reply (70/30) + random online presence (33%) |
+| `lib/message-queue.ts` | ✅ Diubah | 6 | Quarantine check in worker before processing |
+| `lib/whatsapp.ts` | ✅ Diubah | 1, 2, 5, 6 | MS_PER_CHAR typing, read delay, presence, proxyUrl, safety monitor, quoted reply, online presence |
 | `app/api/settings/route.ts` | ✅ Diubah | 1 | Field baru msPerChar, readDelayMs, typingEnabled, dll |
 | `app/api/messages/route.ts` | ✅ Diubah | 3 | Enqueue via BullMQ + daily/monthly limit + tolak broadcast (Free) |
 | `app/api/cron/process-scheduled/route.ts` | ✅ Diubah | 2, 3 | Enqueue per recipient via BullMQ + humanDelay broadcast |
@@ -910,7 +910,7 @@ Fase 1 → Fase 2 → Fase 3 → Fase 4 → Fase 5 → Fase 6
 - [x] BullMQ worker jalan via `instrumentation.ts` (startWorker dipanggil saat server start)
 - [x] Free: daily=50, monthly=500, broadcast=403, concurrency=1 — ✅ enforcement API (messages/route.ts + api-tier.ts)
 - [x] Pro: daily=200, monthly=5000, broadcast=aktif, concurrency=2 — ✅ enforcement API
-- [ ] Enterprise: unlimited + proxy + custom msPerChar — ❌ proxy + limit enforcement API siap, UI custom msPerChar belum
+- [x] Enterprise: unlimited + proxy + custom msPerChar — ✅ speed slider (msPerChar, readDelayMs, typingEnabled) di settings UI Enterprise
 - [x] Menu Broadcast Free: 🔒 gembok + modal upgrade — ✅ UI siap
 - [x] Admin Numbers input — ✅ UI di settings page (Pro: max 3, Enterprise: unlimited)
 - [x] Outbound-Inbound Ratio display — ✅ di settings page
@@ -918,7 +918,14 @@ Fase 1 → Fase 2 → Fase 3 → Fase 4 → Fase 5 → Fase 6
 - [x] Cron reset daily (00:00) + monthly (01:00 tgl 1) — ✅ route sudah dibuat
 - [x] Random quoted reply (70% quote, 30% fresh) — ✅ di sendMessage (Fase 5A)
 - [x] Random online presence (33% available) — ✅ di sendMessage (Fase 5B)
-- [ ] Sidebar safety indicator + upgrade prompt — backlog Fase 4
-- [ ] Dashboard analytics cards (grafik) — backlog Fase 4
-- [ ] Real-time toast >80% limit — backlog Fase 4
-- [ ] Speed slider msPerChar — backlog Fase 4
+- [x] SafetyMonitor class — ✅ lib/safety-monitor.ts (error tracking + level escalation + quarantine)
+- [x] Error recording on disconnect — ✅ connection.update handler records errors to SafetyMonitor
+- [x] Quarantine check in sendMessage — ✅ throws error if quarantined
+- [x] Quarantine check in message queue — ✅ worker rejects quarantined users
+- [x] ProxyUrl support — ✅ Enterprise: input UI → settings API → _doConnect SocksProxyAgent
+- [x] DB schema safety fields — ✅ migration applied (safetyViolations, lastViolationAt, isQuarantined)
+- [x] Outbound ratio check — ✅ SafetyMonitor.checkOutboundRatio()
+- [x] Sidebar safety indicator + upgrade prompt — ✅ safety dot + progress bar + tier badge + upgrade link di sidebar layout
+- [x] Dashboard analytics cards (grafik) — ✅ donut chart distribution + usage/limits progress + insights card
+- [x] Real-time toast >80% limit — ✅ sonner toast + LimitWatcher komponen (cek tiap 60 detik)
+- [x] Speed slider msPerChar — ✅ slider + readDelayMs + typingEnabled di settings UI Enterprise (Fase 6)
