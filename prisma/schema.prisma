@@ -187,7 +187,7 @@ model BaileysAuthCred {
   deviceId  String
   category  String   // creds | session | pre-key | sender-key | app-state-sync-key
   keyId     String?
-  data      Json
+  data      String   // serialized JSON with BufferJSON (Baileys)
 
   @@unique([userId, deviceId, category, keyId])
   @@index([userId, deviceId])

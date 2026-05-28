@@ -25,7 +25,7 @@ async function readCreds(userId: string, deviceId: string): Promise<Authenticati
     },
   });
   if (!row) return null;
-  return JSON.parse(JSON.stringify(row.data), BufferJSON.reviver) as AuthenticationCreds;
+  return JSON.parse(row.data, BufferJSON.reviver) as AuthenticationCreds;
 }
 
 async function writeCreds(userId: string, deviceId: string, creds: AuthenticationCreds): Promise<void> {
@@ -43,10 +43,10 @@ async function writeCreds(userId: string, deviceId: string, creds: Authenticatio
       deviceId,
       category: "creds",
       keyId: "__main__",
-      data: JSON.parse(JSON.stringify(creds, BufferJSON.replacer)),
+      data: JSON.stringify(creds, BufferJSON.replacer),
     },
     update: {
-      data: JSON.parse(JSON.stringify(creds, BufferJSON.replacer)),
+      data: JSON.stringify(creds, BufferJSON.replacer),
     },
   });
 }
@@ -76,13 +76,7 @@ export async function usePrismaAuthState(
       const data: { [id: string]: SignalDataTypeMap[T] } = {};
       for (const row of rows) {
         if (row.keyId) {
-          const parsed = JSON.parse(JSON.stringify(row.data), BufferJSON.reviver) as SignalDataTypeMap[T];
-          if (type === "app-state-sync-key" && parsed) {
-            const { proto } = await import("@whiskeysockets/baileys");
-            data[row.keyId] = proto.Message.AppStateSyncKeyData.fromObject(parsed as any) as any;
-          } else {
-            data[row.keyId] = parsed;
-          }
+          data[row.keyId] = JSON.parse(row.data, BufferJSON.reviver) as SignalDataTypeMap[T];
         }
       }
 
@@ -90,7 +84,7 @@ export async function usePrismaAuthState(
     },
 
     set: async (data: SignalDataSet): Promise<void> => {
-      const operations: Promise<unknown>[] = [];
+      const operations: Promise<any>[] = [];
 
       for (const category in data) {
         const entries = data[category as keyof SignalDataSet];
@@ -108,10 +102,10 @@ export async function usePrismaAuthState(
                   category,
                   keyId: id,
                 },
-              }),
+              })
             );
           } else {
-            const serialized = JSON.parse(JSON.stringify(value, BufferJSON.replacer));
+            const serialized = JSON.stringify(value, BufferJSON.replacer);
             operations.push(
               prisma.baileysAuthCred.upsert({
                 where: {
@@ -132,7 +126,7 @@ export async function usePrismaAuthState(
                 update: {
                   data: serialized,
                 },
-              }),
+              })
             );
           }
         }

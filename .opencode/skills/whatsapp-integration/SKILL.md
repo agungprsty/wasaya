@@ -134,6 +134,54 @@ const { state, saveCreds } = await usePrismaAuthState(userId, deviceId);
 // saveCreds() → triggered by creds.update event
 ```
 
+### Critical: SignalKeyStore `set()` — No Transactions + Parallel
+The `set()` function in `usePrismaAuthState` must NOT use `prisma.$transaction()`. During initial sync, Baileys sends hundreds of keys concurrently; a transaction would hold uncommitted writes invisible to concurrent `get()` calls (Read Committed isolation), causing `failed to find key to decode mutation`.
+
+Always use **direct `prisma` calls + `Promise.all`**:
+```typescript
+set: async (data: SignalDataSet): Promise<void> => {
+  const operations: Promise<any>[] = [];
+  for (const category in data) {
+    const entries = data[category as keyof SignalDataSet];
+    if (!entries) continue;
+    for (const id in entries) {
+      const value = entries[id];
+      if (value === null || value === undefined) {
+        operations.push(prisma.baileysAuthCred.deleteMany({ where: { ... } }));
+      } else {
+        const serialized = JSON.stringify(value, BufferJSON.replacer);
+        operations.push(prisma.baileysAuthCred.upsert({ where: { ... }, create: { ... }, update: { ... } }));
+      }
+    }
+  }
+  await Promise.all(operations);
+};
+```
+
+## Reconnect & Auth State Caching
+In `_doConnect()` (`lib/whatsapp.ts`), **reuse cached auth state** to preserve Baileys' internal signal key cache across reconnects:
+
+```typescript
+let state = this.authStates.get(key);
+let saveCreds = this.saveCredsFns.get(key);
+
+if (!state || !saveCreds) {
+  const auth = await usePrismaAuthState(userId, deviceId);
+  state = auth.state;
+  saveCreds = auth.saveCreds;
+  this.authStates.set(key, state);
+  this.saveCredsFns.set(key, saveCreds);
+}
+```
+
+This avoids re-initializing `makeCacheableSignalKeyStore` and losing the in-memory key cache on every reconnect.
+
+## Default Device on Registration
+When a user registers (`app/api/auth/register/route.ts`), a default `WhatsAppSession` with `deviceId: "main"` and `name: "Main Device"` is auto-created so the dashboard never shows "No Devices" for new users.
+
+## Status API — Null Return
+`getStatus()` returns `null` when the requested `deviceId` does not exist in the database (no fabricated fallback object). The API route returns `404 { session: null, error: "Device not found" }` in that case.
+
 ## JID Format
 Gunakan `toJID()` helper dari `lib/whatsapp.ts` untuk semua konversi nomor:
 ```typescript
@@ -163,9 +211,14 @@ toJID("628123456789@s.whatsapp.net") // → unchanged
 - Update in-memory state AND database simultaneously in event handlers
 - Use `?.` for optional chaining on WhatsApp objects (phone, qrCode may be null)
 - Call `toJID()` on every `to` parameter before passing to `sock.sendMessage()`
+- Use **`Promise.all` + direct `prisma` calls** in SignalKeyStore `set()` (no `$transaction`)
+- **Reuse cached auth state** on reconnect to preserve Baileys' in-memory key cache
+- Auto-create "Main Device" `WhatsAppSession` on user registration
 
 ### Don't ❌
 - Don't call `startConnect()` multiple times — it's idempotent
 - Don't block on webhook delivery — fire-and-forget pattern
 - Don't auto-reconnect on `DisconnectReason.loggedOut` — notify user instead
 - Don't forget to run `prisma generate` after schema changes involving WhatsApp models
+- **Don't wrap `set()` in `$transaction`** — concurrent `get()` calls won't see uncommitted data
+- **Don't fabricate fallback objects** in `getStatus()` — return `null` when device not found

@@ -42,7 +42,7 @@ This project uses Next.js 16.2.6 with Turbopack (default bundler). The following
 | Language | TypeScript 5+ (strict mode) |
 | Database | PostgreSQL + Prisma ORM v6 |
 | Auth | JWT (httpOnly cookies), bcryptjs |
-| WhatsApp | @whiskeysockets/baileys v6.7.23 (WebSocket murni, tanpa browser) |
+| WhatsApp | @whiskeysockets/baileys v7.0.0-rc13 (WebSocket murni, tanpa browser) |
 | Styling | Tailwind CSS v4 (`@import "tailwindcss"`) |
 | Linting | ESLint v9 (flat config, `eslint.config.mjs`) |
 | Package manager | npm |

@@ -19,6 +19,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ pairingCode: code, ok: true });
   }
 
-  whatsappManager.startConnect(user!.userId, 120_000, deviceId).catch(() => {});
+  whatsappManager.startConnect(user!.userId, 0, deviceId).catch(() => {});
   return NextResponse.json({ ok: true, mode: "qr" });
 }

@@ -6,8 +6,10 @@ import { waLogger } from "@/lib/logger";
 import { usePrismaAuthState } from "@/lib/baileys-auth";
 import makeWASocket, {
   DisconnectReason,
+  fetchLatestWaWebVersion,
   type WASocket,
   type AuthenticationState,
+  type WAVersion,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 
@@ -15,6 +17,25 @@ const QR_TIMEOUT_MS = 20_000;
 const MAX_RECONNECT_RETRIES = 5;
 const RECONNECT_BASE_DELAY_MS = 5_000;
 const HEALTH_CHECK_INTERVAL_MS = 30_000;
+const VERSION_REFRESH_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+let cachedVersion: WAVersion | null = null;
+let lastVersionFetch = 0;
+
+async function getLatestVersion(): Promise<WAVersion> {
+  const now = Date.now();
+  if (cachedVersion && now - lastVersionFetch < VERSION_REFRESH_MS) {
+    return cachedVersion;
+  }
+  try {
+    const { version } = await fetchLatestWaWebVersion();
+    cachedVersion = version;
+    lastVersionFetch = now;
+    return version;
+  } catch {
+    return cachedVersion ?? [2, 3000, 1035194821];
+  }
+}
 
 function makeKey(userId: string, deviceId: string): string {
   return `${userId}_${deviceId}`;
@@ -34,6 +55,8 @@ interface ContactEntry {
   jid: string;
 }
 
+const MANAGER_GLOBAL_KEY = "__baileys_manager_instance__";
+
 class BaileysManager {
   private sockets: Map<string, WASocket> = new Map();
   private connecting: Map<string, Promise<void>> = new Map();
@@ -47,6 +70,8 @@ class BaileysManager {
   private knownSessions: Map<string, { userId: string; deviceId: string }> = new Map();
   private healthCheckTimer: NodeJS.Timeout | null = null;
   private pendingPairings: Map<string, string> = new Map();
+  private credsSavePromises: Map<string, Promise<void>> = new Map();
+  private saveCredsFns: Map<string, () => Promise<void>> = new Map();
 
   private async ensureInitialized() {
     if (this.initialized) return;
@@ -69,15 +94,15 @@ class BaileysManager {
     const session = await prisma.whatsAppSession.findUnique({
       where: { userId_deviceId: { userId, deviceId } },
     });
-    const base = session || { id: "", userId, deviceId, name: "Main Device", phone: null, qrCode: null, createdAt: new Date(), updatedAt: new Date() };
+    if (!session) return null;
 
-    let status = session?.status || "disconnected";
+    let status = session.status;
     const key = makeKey(userId, deviceId);
     if (status === "connected" && !this.sockets.has(key)) {
       status = this.connecting.has(key) ? "connecting" : "disconnected";
     }
 
-    return { ...base, status };
+    return { ...session, status };
   }
 
   async listDevices(userId: string) {
@@ -121,6 +146,8 @@ class BaileysManager {
       this.sockets.delete(key);
     }
     this.connecting.delete(key);
+    this.credsSavePromises.delete(key);
+    this.saveCredsFns.delete(key);
     this.qrCache.delete(key);
     this.authStates.delete(key);
     this.contactsCache.delete(key);
@@ -193,18 +220,30 @@ class BaileysManager {
     if (oldTimer) clearTimeout(oldTimer);
     this.qrTimers.delete(key);
 
-    const { state, saveCreds } = await usePrismaAuthState(userId, deviceId);
-    this.authStates.set(key, state);
+    let state = this.authStates.get(key);
+    let saveCreds = this.saveCredsFns.get(key);
+
+    if (!state || !saveCreds) {
+      const auth = await usePrismaAuthState(userId, deviceId);
+      state = auth.state;
+      saveCreds = auth.saveCreds;
+      this.authStates.set(key, state);
+      this.saveCredsFns.set(key, saveCreds);
+    }
 
     const sock = makeWASocket({
       auth: state,
+      version: await getLatestVersion(),
       logger: waLogger,
-      printQRInTerminal: false,
       emitOwnEvents: false,
     });
 
     sock.ev.on("creds.update", () => {
-      saveCreds().catch(() => {});
+      const p = saveCreds().catch(() => {});
+      this.credsSavePromises.set(key, p);
+      p.finally(() => {
+        if (this.credsSavePromises.get(key) === p) this.credsSavePromises.delete(key);
+      });
     });
 
     sock.ev.on("connection.update", async (update) => {
@@ -262,12 +301,14 @@ class BaileysManager {
         if (!isManual) {
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
           if (statusCode !== DisconnectReason.loggedOut) {
+            await (this.credsSavePromises.get(key) ?? Promise.resolve());
+            await (this.saveCredsFns.get(key)?.() ?? Promise.resolve());
             const retries = this.reconnectRetries.get(key) || 0;
             if (retries < MAX_RECONNECT_RETRIES) {
               const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, retries);
               this.reconnectRetries.set(key, retries + 1);
               setTimeout(() => {
-                this.startConnect(userId, 45_000, deviceId).catch(() => {});
+                this.startConnect(userId, 0, deviceId).catch(() => {});
               }, delay);
               return;
             }
@@ -413,7 +454,7 @@ class BaileysManager {
           const hasSocket = this.sockets.has(key);
           const isConnecting = this.connecting.has(key);
           if (!hasSocket && !isConnecting) {
-            this.startConnect(info.userId, 45_000, info.deviceId).catch(() => {});
+            this.startConnect(info.userId, 0, info.deviceId).catch(() => {});
           }
         }
       } catch {}
@@ -486,6 +527,9 @@ class BaileysManager {
       this.sockets.delete(key);
     }
     this.connecting.delete(key);
+    this.credsSavePromises.delete(key);
+    this.saveCredsFns.delete(key);
+    this.authStates.delete(key);
     await prisma.whatsAppSession.upsert({
       where: { userId_deviceId: { userId, deviceId } },
       create: { userId, deviceId, status: "disconnected" },
@@ -531,7 +575,7 @@ class BaileysManager {
       where: { userId_deviceId: { userId, deviceId } },
     });
     if (session?.status === "connected" || session?.status === "connecting") {
-      await this.startConnect(userId, 15000, deviceId).catch(() => {});
+      await this.startConnect(userId, 0, deviceId).catch(() => {});
     }
 
     const sock = this.sockets.get(key);
@@ -610,4 +654,13 @@ class BaileysManager {
   }
 }
 
-export const whatsappManager = new BaileysManager();
+function getManagerInstance(): BaileysManager {
+  if ((globalThis as any)[MANAGER_GLOBAL_KEY]) {
+    return (globalThis as any)[MANAGER_GLOBAL_KEY] as BaileysManager;
+  }
+  const instance = new BaileysManager();
+  (globalThis as any)[MANAGER_GLOBAL_KEY] = instance;
+  return instance;
+}
+
+export const whatsappManager = getManagerInstance();
