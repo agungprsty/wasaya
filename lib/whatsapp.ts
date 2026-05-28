@@ -1,11 +1,16 @@
-import { Client, LocalAuth, MessageMedia, Location } from "whatsapp-web.js";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import path from "path";
 import { deliverWebhook } from "@/lib/webhook";
 import { processChatbot, processAutoReply } from "@/lib/chatbot";
+import { waLogger } from "@/lib/logger";
+import { usePrismaAuthState } from "@/lib/baileys-auth";
+import makeWASocket, {
+  DisconnectReason,
+  type WASocket,
+  type AuthenticationState,
+} from "@whiskeysockets/baileys";
+import { Boom } from "@hapi/boom";
 
-const SESSION_DIR = path.join(process.cwd(), "wa_sessions");
 const QR_TIMEOUT_MS = 20_000;
 const MAX_RECONNECT_RETRIES = 5;
 const RECONNECT_BASE_DELAY_MS = 5_000;
@@ -15,7 +20,7 @@ function makeKey(userId: string, deviceId: string): string {
   return `${userId}_${deviceId}`;
 }
 
-function toJID(to: string): string {
+export function toJID(to: string): string {
   if (to.includes("@")) {
     return to.replace(/@c\.us$/, "@s.whatsapp.net");
   }
@@ -23,29 +28,30 @@ function toJID(to: string): string {
   return `${clean}@s.whatsapp.net`;
 }
 
-class WhatsAppManager {
-  private clients: Map<string, Client> = new Map();
+interface ContactEntry {
+  name: string;
+  number: string;
+  jid: string;
+}
+
+class BaileysManager {
+  private sockets: Map<string, WASocket> = new Map();
   private connecting: Map<string, Promise<void>> = new Map();
   private qrCache: Map<string, string | null> = new Map();
   private qrTimers: Map<string, NodeJS.Timeout> = new Map();
+  private authStates: Map<string, AuthenticationState> = new Map();
+  private contactsCache: Map<string, Map<string, ContactEntry>> = new Map();
   private initialized = false;
   private manualDisconnects: Set<string> = new Set();
   private reconnectRetries: Map<string, number> = new Map();
   private knownSessions: Map<string, { userId: string; deviceId: string }> = new Map();
   private healthCheckTimer: NodeJS.Timeout | null = null;
 
-  private get db() {
-    if (!prisma.whatsAppSession) {
-      throw new Error("WhatsAppSession model not found in Prisma schema. Run 'npx prisma migrate dev' first.");
-    }
-    return prisma;
-  }
-
   private async ensureInitialized() {
     if (this.initialized) return;
     this.initialized = true;
     try {
-      const sessions = await this.db.whatsAppSession.findMany({
+      const sessions = await prisma.whatsAppSession.findMany({
         where: { OR: [{ status: "connected" }, { status: "connecting" }] },
       });
       for (const session of sessions) {
@@ -59,14 +65,14 @@ class WhatsAppManager {
 
   async getStatus(userId: string, deviceId = "main") {
     await this.ensureInitialized().catch(() => {});
-    const session = await this.db.whatsAppSession.findUnique({
+    const session = await prisma.whatsAppSession.findUnique({
       where: { userId_deviceId: { userId, deviceId } },
     });
     const base = session || { id: "", userId, deviceId, name: "Main Device", phone: null, qrCode: null, createdAt: new Date(), updatedAt: new Date() };
 
     let status = session?.status || "disconnected";
     const key = makeKey(userId, deviceId);
-    if (status === "connected" && !this.clients.has(key)) {
+    if (status === "connected" && !this.sockets.has(key)) {
       status = this.connecting.has(key) ? "connecting" : "disconnected";
     }
 
@@ -75,13 +81,13 @@ class WhatsAppManager {
 
   async listDevices(userId: string) {
     await this.ensureInitialized().catch(() => {});
-    const sessions = await this.db.whatsAppSession.findMany({
+    const sessions = await prisma.whatsAppSession.findMany({
       where: { userId },
       orderBy: { createdAt: "asc" },
     });
     return sessions.map((s) => ({
       ...s,
-      status: this.clients.has(makeKey(userId, s.deviceId))
+      status: this.sockets.has(makeKey(userId, s.deviceId))
         ? s.status
         : this.connecting.has(makeKey(userId, s.deviceId))
           ? "connecting"
@@ -91,13 +97,13 @@ class WhatsAppManager {
 
   async addDevice(userId: string, name: string, deviceId: string) {
     if (!deviceId) deviceId = crypto.randomUUID().slice(0, 8);
-    const count = await this.db.whatsAppSession.count({ where: { userId } });
+    const count = await prisma.whatsAppSession.count({ where: { userId } });
     if (count >= 4) throw new Error("Maximum 4 devices allowed");
-    const existing = await this.db.whatsAppSession.findUnique({
+    const existing = await prisma.whatsAppSession.findUnique({
       where: { userId_deviceId: { userId, deviceId } },
     });
     if (existing) throw new Error("Device ID already exists");
-    const session = await this.db.whatsAppSession.create({
+    const session = await prisma.whatsAppSession.create({
       data: { userId, deviceId, name, status: "disconnected" },
     });
     return session;
@@ -108,17 +114,22 @@ class WhatsAppManager {
     this.manualDisconnects.delete(key);
     this.knownSessions.delete(key);
     this.reconnectRetries.delete(key);
-    const client = this.clients.get(key);
-    if (client) {
-      await client.destroy().catch(() => {});
-      this.clients.delete(key);
+    const sock = this.sockets.get(key);
+    if (sock) {
+      sock.end(new Error("Device deleted"));
+      this.sockets.delete(key);
     }
     this.connecting.delete(key);
     this.qrCache.delete(key);
+    this.authStates.delete(key);
+    this.contactsCache.delete(key);
     const timer = this.qrTimers.get(key);
     if (timer) clearTimeout(timer);
     this.qrTimers.delete(key);
-    await this.db.whatsAppSession.deleteMany({
+    await prisma.baileysAuthCred.deleteMany({
+      where: { userId, deviceId },
+    }).catch(() => {});
+    await prisma.whatsAppSession.deleteMany({
       where: { userId, deviceId },
     });
   }
@@ -126,18 +137,14 @@ class WhatsAppManager {
   async startConnect(userId: string, timeoutMs = 0, deviceId = "main") {
     const key = makeKey(userId, deviceId);
 
-    // Wait for any existing connect attempt to finish
     const existing = this.connecting.get(key);
     if (existing) {
       try {
         await existing;
-      } catch {
-        // existing failed, continue with new attempt
-      }
+      } catch {}
     }
 
-    // Already connected, nothing to do
-    if (this.clients.has(key)) return;
+    if (this.sockets.has(key)) return;
 
     const promise = this._doConnect(userId, deviceId, timeoutMs);
     this.connecting.set(key, promise);
@@ -153,15 +160,14 @@ class WhatsAppManager {
 
   private async _doConnect(userId: string, deviceId: string, timeoutMs = 0) {
     const key = makeKey(userId, deviceId);
-    const existing = this.clients.get(key);
+
+    const existing = this.sockets.get(key);
     if (existing) {
-      const state = await existing.getState().catch(() => "disconnected");
-      if (state === "connected") return;
-      await existing.destroy().catch(() => {});
-      this.clients.delete(key);
+      existing.end(new Error("Reconnecting"));
+      this.sockets.delete(key);
     }
 
-    await this.db.whatsAppSession.upsert({
+    await prisma.whatsAppSession.upsert({
       where: { userId_deviceId: { userId, deviceId } },
       create: { userId, deviceId, status: "connecting" },
       update: { status: "connecting", qrCode: null },
@@ -173,171 +179,195 @@ class WhatsAppManager {
     if (oldTimer) clearTimeout(oldTimer);
     this.qrTimers.delete(key);
 
-    const waClient = new Client({
-      authStrategy: new LocalAuth({ clientId: key, dataPath: this.getSessionPath(userId, deviceId) }),
-      puppeteer: {
-        headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-gpu",
-          "--disable-dev-shm-usage",
-          "--no-first-run",
-          "--disable-extensions",
-          "--disable-background-networking",
-          "--disable-sync",
-          "--disable-default-apps",
-          "--mute-audio",
-          "--hide-scrollbars",
-          "--disable-notifications",
-          "--disable-breakpad",
-          "--disable-component-update",
-          "--no-default-browser-check",
-        ],
-      },
+    const { state, saveCreds } = await usePrismaAuthState(userId, deviceId);
+    this.authStates.set(key, state);
+
+    const sock = makeWASocket({
+      auth: state,
+      logger: waLogger,
+      printQRInTerminal: false,
+      emitOwnEvents: false,
     });
 
-    waClient.on("qr", async (qr) => {
-      await this.db.whatsAppSession.upsert({
-        where: { userId_deviceId: { userId, deviceId } },
-        create: { userId, deviceId, status: "connecting", qrCode: qr },
-        update: { qrCode: qr },
-      });
-      this.qrCache.set(key, qr);
-      const existing = this.qrTimers.get(key);
-      if (existing) clearTimeout(existing);
-      this.qrTimers.set(
-        key,
-        setTimeout(() => {
-          this.qrCache.delete(key);
-          this.qrTimers.delete(key);
-          this.disconnect(userId, deviceId).catch(() => {});
-        }, QR_TIMEOUT_MS),
-      );
+    sock.ev.on("creds.update", () => {
+      saveCreds().catch(() => {});
     });
 
-    waClient.on("ready", async () => {
-      const timer = this.qrTimers.get(key);
-      if (timer) clearTimeout(timer);
-      this.qrTimers.delete(key);
-      this.qrCache.delete(key);
-      const info = waClient.info;
-      await this.db.whatsAppSession.upsert({
-        where: { userId_deviceId: { userId, deviceId } },
-        create: { userId, deviceId, status: "connected", phone: info?.wid?.user || null, qrCode: null },
-        update: { status: "connected", phone: info?.wid?.user || null, qrCode: null },
-      });
-      this.retryPendingMessages(userId, deviceId, waClient).catch(() => {});
+    sock.ev.on("connection.update", async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+
+      if (qr) {
+        await prisma.whatsAppSession.upsert({
+          where: { userId_deviceId: { userId, deviceId } },
+          create: { userId, deviceId, status: "connecting", qrCode: qr },
+          update: { qrCode: qr },
+        });
+        this.qrCache.set(key, qr);
+        const existingTimer = this.qrTimers.get(key);
+        if (existingTimer) clearTimeout(existingTimer);
+        this.qrTimers.set(
+          key,
+          setTimeout(() => {
+            this.qrCache.delete(key);
+            this.qrTimers.delete(key);
+            this.disconnect(userId, deviceId).catch(() => {});
+          }, QR_TIMEOUT_MS),
+        );
+      }
+
+      if (connection === "open") {
+        const timer = this.qrTimers.get(key);
+        if (timer) clearTimeout(timer);
+        this.qrTimers.delete(key);
+        this.qrCache.delete(key);
+
+        const phone = state.creds.me?.id
+          ? state.creds.me.id.split(":")[0]
+          : null;
+        await prisma.whatsAppSession.upsert({
+          where: { userId_deviceId: { userId, deviceId } },
+          create: { userId, deviceId, status: "connected", phone, qrCode: null },
+          update: { status: "connected", phone, qrCode: null },
+        });
+        this.sockets.set(key, sock);
+        this.knownSessions.set(key, { userId, deviceId });
+        this.reconnectRetries.delete(key);
+        this._setupContactsStore(sock, key);
+        this.retryPendingMessages(userId, deviceId, sock).catch(() => {});
+      }
+
+      if (connection === "close") {
+        const timer = this.qrTimers.get(key);
+        if (timer) clearTimeout(timer);
+        this.qrTimers.delete(key);
+        this.qrCache.delete(key);
+        this.sockets.delete(key);
+        this.contactsCache.delete(key);
+
+        const isManual = this.manualDisconnects.has(key);
+        if (!isManual) {
+          const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+          if (statusCode !== DisconnectReason.loggedOut) {
+            const retries = this.reconnectRetries.get(key) || 0;
+            if (retries < MAX_RECONNECT_RETRIES) {
+              const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, retries);
+              this.reconnectRetries.set(key, retries + 1);
+              setTimeout(() => {
+                this.startConnect(userId, 45_000, deviceId).catch(() => {});
+              }, delay);
+              return;
+            }
+          }
+        }
+
+        this.manualDisconnects.delete(key);
+        this.reconnectRetries.delete(key);
+        await prisma.whatsAppSession.upsert({
+          where: { userId_deviceId: { userId, deviceId } },
+          create: { userId, deviceId, status: "disconnected" },
+          update: { status: "disconnected", qrCode: null },
+        });
+      }
     });
 
-    waClient.on("message_ack", async (msg, ack) => {
-      const statusMap: Record<number, string> = {
-        1: "sent",
-        2: "delivered",
-        3: "delivered",
-        4: "failed",
-      };
-      const status = statusMap[ack] || "sent";
-      const serialized = msg.id?._serialized;
-      if (serialized) {
-        await this.db.whatsAppMessage.updateMany({
-          where: { messageId: serialized, userId },
+    sock.ev.on("messages.upsert", async ({ messages, type }) => {
+      if (type !== "notify") return;
+
+      for (const msg of messages) {
+        if (msg.key?.fromMe) continue;
+        const jid = msg.key?.remoteJid;
+        if (!jid) continue;
+
+        const body =
+          msg.message?.conversation ||
+          msg.message?.extendedTextMessage?.text ||
+          msg.message?.imageMessage?.caption ||
+          msg.message?.videoMessage?.caption ||
+          msg.message?.documentMessage?.caption ||
+          "";
+
+        if (!body) continue;
+
+        const record = await prisma.whatsAppMessage.create({
+          data: {
+            userId,
+            deviceId,
+            to: jid,
+            from: state.creds.me?.id?.split(":")[0] || "unknown",
+            messageId: msg.key.id || crypto.randomUUID(),
+            body,
+            status: "received",
+          },
+        });
+
+        const autoReplied = await processAutoReply(userId, jid, deviceId).catch(() => false);
+        if (autoReplied) return;
+
+        const reply = await processChatbot(userId, jid, body).catch(() => null);
+        if (reply) {
+          this.sendMessage(userId, jid, reply, null, deviceId).catch(() => {});
+          return;
+        }
+
+        deliverWebhook(userId, "message.received", {
+          id: record.id,
+          from: jid,
+          body,
+          timestamp: record.timestamp.toISOString(),
+        }).catch(() => {});
+      }
+    });
+
+    sock.ev.on("messages.update", async (updates) => {
+      for (const { key, update } of updates) {
+        if (update.status == null) continue;
+        const messageId = key.id;
+        if (!messageId) continue;
+        const statusMap: Record<number, string> = {
+          1: "sent",
+          2: "delivered",
+          3: "read",
+        };
+        const status = statusMap[update.status] || "sent";
+        await prisma.whatsAppMessage.updateMany({
+          where: { messageId, userId },
           data: { status },
         }).catch(() => {});
         deliverWebhook(userId, `message.${status}`, {
-          messageId: serialized,
+          messageId,
           status,
           timestamp: new Date().toISOString(),
         }).catch(() => {});
       }
     });
 
-    waClient.on("disconnected", async () => {
-      const timer = this.qrTimers.get(key);
-      if (timer) clearTimeout(timer);
-      this.qrTimers.delete(key);
-      this.qrCache.delete(key);
-      this.clients.delete(key);
-
-      const isManual = this.manualDisconnects.has(key);
-      if (!isManual) {
-        const retries = this.reconnectRetries.get(key) || 0;
-        if (retries < MAX_RECONNECT_RETRIES) {
-          const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, retries);
-          this.reconnectRetries.set(key, retries + 1);
-          await new Promise((r) => setTimeout(r, delay));
-          this.startConnect(userId, 45_000, deviceId).catch(() => {});
-          return;
-        }
-      }
-
-      this.manualDisconnects.delete(key);
-      this.reconnectRetries.delete(key);
-      await this.db.whatsAppSession.upsert({
-        where: { userId_deviceId: { userId, deviceId } },
-        create: { userId, deviceId, status: "disconnected" },
-        update: { status: "disconnected", qrCode: null },
-      });
-    });
-
-    waClient.on("message", async (msg) => {
-      const from = msg.from || "";
-      const body = msg.body || "";
-      if (!from || !body) return;
-      const record = await this.db.whatsAppMessage.create({
-        data: {
-          userId,
-          deviceId,
-          to: from,
-          from: waClient.info?.wid?.user || "unknown",
-          messageId: msg.id?._serialized || crypto.randomUUID(),
-          body,
-          status: "received",
-        },
-      });
-
-      const autoReplied = await processAutoReply(userId, from).catch(() => false);
-      if (autoReplied) return;
-
-      const reply = await processChatbot(userId, from, body).catch(() => null);
-      if (reply) {
-        this.sendMessage(userId, from, reply, null, deviceId).catch(() => {});
-        return;
-      }
-
-      deliverWebhook(userId, "message.received", {
-        id: record.id,
-        from,
-        body,
-        timestamp: record.timestamp.toISOString(),
-      }).catch(() => {});
-    });
-
     try {
       if (timeoutMs > 0) {
         await Promise.race([
-          waClient.initialize(),
+          new Promise<void>((resolve, reject) => {
+            const onOpen = () => {
+              sock.ev.off("connection.update", onUpdate);
+              resolve();
+            };
+            const onUpdate = (u: any) => {
+              if (u.connection === "open") onOpen();
+            };
+            sock.ev.on("connection.update", onUpdate);
+          }),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error("Connection timeout")), timeoutMs)
           ),
         ]);
-      } else {
-        await waClient.initialize();
       }
-      await this.waitForStoreReady(waClient);
-      this.clients.set(key, waClient);
-      this.knownSessions.set(key, { userId, deviceId });
-      this.reconnectRetries.delete(key);
     } catch (err) {
-      console.error(`[WhatsApp] _doConnect failed for ${key}:`, err);
       const isTimeout = err instanceof Error && err.message === "Connection timeout";
       if (isTimeout) {
-        waClient.destroy().catch(() => {});
+        sock.end(new Error("Connection timeout"));
       }
-      if (this.clients.has(key)) {
-        this.clients.delete(key);
+      if (this.sockets.has(key)) {
+        this.sockets.delete(key);
       }
-      await this.db.whatsAppSession.upsert({
+      await prisma.whatsAppSession.upsert({
         where: { userId_deviceId: { userId, deviceId } },
         create: { userId, deviceId, status: "disconnected" },
         update: { status: "disconnected", qrCode: null },
@@ -351,15 +381,13 @@ class WhatsAppManager {
     this.healthCheckTimer = setInterval(async () => {
       try {
         for (const [key, info] of this.knownSessions) {
-          const hasClient = this.clients.has(key);
+          const hasSocket = this.sockets.has(key);
           const isConnecting = this.connecting.has(key);
-          if (!hasClient && !isConnecting) {
+          if (!hasSocket && !isConnecting) {
             this.startConnect(info.userId, 45_000, info.deviceId).catch(() => {});
           }
         }
-      } catch {
-        // ignore
-      }
+      } catch {}
     }, HEALTH_CHECK_INTERVAL_MS);
   }
 
@@ -370,11 +398,41 @@ class WhatsAppManager {
     }
   }
 
+  private _setupContactsStore(sock: WASocket, key: string) {
+    sock.ev.on("contacts.upsert", (contacts) => {
+      for (const c of contacts) {
+        const jid = c.id;
+        if (!jid) continue;
+        const existing = this.contactsCache.get(key) || new Map();
+        existing.set(jid, {
+          name: c.name || c.notify || "",
+          number: jid.split("@")[0],
+          jid,
+        });
+        this.contactsCache.set(key, existing);
+      }
+    });
+
+    sock.ev.on("contacts.update", (updates) => {
+      const existing = this.contactsCache.get(key);
+      if (!existing) return;
+      for (const u of updates) {
+        const jid = u.id;
+        if (!jid) continue;
+        const contact = existing.get(jid);
+        if (contact) {
+          if (u.name) contact.name = u.name;
+          if (u.notify) contact.name = u.notify;
+        }
+      }
+    });
+  }
+
   async getQR(userId: string, deviceId = "main"): Promise<string | null> {
     const key = makeKey(userId, deviceId);
     if (this.qrCache.has(key)) return this.qrCache.get(key) ?? null;
     await this.ensureInitialized().catch(() => {});
-    const session = await this.db.whatsAppSession.findUnique({
+    const session = await prisma.whatsAppSession.findUnique({
       where: { userId_deviceId: { userId, deviceId } },
     });
     if (!session) return null;
@@ -392,13 +450,14 @@ class WhatsAppManager {
     if (timer) clearTimeout(timer);
     this.qrTimers.delete(key);
     this.qrCache.delete(key);
-    const client = this.clients.get(key);
-    if (client) {
-      await client.destroy().catch(() => {});
-      this.clients.delete(key);
+    this.contactsCache.delete(key);
+    const sock = this.sockets.get(key);
+    if (sock) {
+      sock.end(new Error("Manual disconnect"));
+      this.sockets.delete(key);
     }
     this.connecting.delete(key);
-    await this.db.whatsAppSession.upsert({
+    await prisma.whatsAppSession.upsert({
       where: { userId_deviceId: { userId, deviceId } },
       create: { userId, deviceId, status: "disconnected" },
       update: { status: "disconnected", qrCode: null },
@@ -408,43 +467,24 @@ class WhatsAppManager {
   async getContacts(userId: string, deviceId = "main") {
     await this.ensureInitialized().catch(() => {});
     const key = makeKey(userId, deviceId);
-    const client = this.clients.get(key);
-    if (!client) throw new Error("WhatsApp not connected");
-    const contacts = await client.getContacts();
-    const seen = new Set<string>();
-    return contacts
-      .filter((c) => {
-        if (!c.isMyContact || !c.id?.user) return false;
-        if (seen.has(c.id.user)) return false;
-        seen.add(c.id.user);
-        return true;
-      })
-      .map((c) => ({
-        name: c.name || c.pushname || c.shortName || "",
-        number: c.id.user,
-        id: c.id._serialized,
-      }));
+    const cached = this.contactsCache.get(key);
+    if (cached && cached.size > 0) {
+      return Array.from(cached.values());
+    }
+    return [];
   }
 
   async getGroups(userId: string, deviceId = "main") {
     await this.ensureInitialized().catch(() => {});
     const key = makeKey(userId, deviceId);
-    const client = this.clients.get(key);
-    if (!client) throw new Error("WhatsApp not connected");
-    const chats = await client.getChats();
-    const seen = new Set<string>();
-    return chats
-      .filter((c) => c.isGroup && c.id?._serialized)
-      .filter((c) => {
-        if (seen.has(c.id._serialized)) return false;
-        seen.add(c.id._serialized);
-        return true;
-      })
-      .map((c) => ({
-        id: c.id._serialized,
-        name: c.name || "Unnamed Group",
-        participants: (c as unknown as { participants?: { length: number } }).participants?.length || 0,
-      }));
+    const sock = this.sockets.get(key);
+    if (!sock) throw new Error("WhatsApp not connected");
+    const groups = await sock.groupFetchAllParticipating();
+    return Object.entries(groups).map(([id, g]) => ({
+      id,
+      name: g.subject || "Unnamed Group",
+      participants: g.participants?.length || 0,
+    }));
   }
 
   async sendMessage(
@@ -458,38 +498,53 @@ class WhatsAppManager {
     await this.ensureInitialized().catch(() => {});
 
     const key = makeKey(userId, deviceId);
-    const session = await this.db.whatsAppSession.findUnique({
+    const session = await prisma.whatsAppSession.findUnique({
       where: { userId_deviceId: { userId, deviceId } },
     });
     if (session?.status === "connected" || session?.status === "connecting") {
       await this.startConnect(userId, 15000, deviceId).catch(() => {});
     }
 
-    const client = this.clients.get(key);
-    if (!client) throw new Error("WhatsApp not connected");
+    const sock = this.sockets.get(key);
+    if (!sock) throw new Error("WhatsApp not connected");
 
-    const cleanNumber = to.replace(/[^0-9]/g, "");
-    const chatId = to.includes("@") ? to : `${cleanNumber}@c.us`;
+    const jid = toJID(to);
 
     if (location) {
-      await client.sendMessage(chatId, new Location(location.latitude, location.longitude));
+      await sock.sendMessage(jid, {
+        location: {
+          degreesLatitude: location.latitude,
+          degreesLongitude: location.longitude,
+        },
+      });
     }
-    if (body) {
-      if (media) {
-        const msgMedia = new MessageMedia(
-          media.mimetype,
-          media.base64,
-          media.filename || "file",
-        );
-        await client.sendMessage(chatId, msgMedia, { caption: body || undefined });
+
+    if (media && media.base64) {
+      const buffer = Buffer.from(media.base64, "base64");
+      const mime = media.mimetype || "application/octet-stream";
+
+      let content: any;
+      if (mime.startsWith("image/")) {
+        content = { image: buffer, caption: body || undefined };
+      } else if (mime.startsWith("video/")) {
+        content = { video: buffer, caption: body || undefined };
+      } else if (mime.startsWith("audio/")) {
+        content = { audio: buffer };
       } else {
-        await client.sendMessage(chatId, body);
+        content = {
+          document: buffer,
+          fileName: media.filename || "file",
+          caption: body || undefined,
+        };
       }
-    } else if (!location && !media) {
+      await sock.sendMessage(jid, content);
+    } else if (body) {
+      await sock.sendMessage(jid, { text: body });
+    } else if (!location) {
       throw new Error("Nothing to send");
     }
 
-    await this.db.whatsAppMessage.create({
+    await prisma.whatsAppMessage.create({
       data: {
         userId,
         deviceId,
@@ -502,21 +557,21 @@ class WhatsAppManager {
     });
   }
 
-  private async retryPendingMessages(userId: string, deviceId = "main", client?: Client) {
-    const pending = await this.db.whatsAppMessage.findMany({
+  private async retryPendingMessages(userId: string, deviceId = "main", sock?: WASocket) {
+    const pending = await prisma.whatsAppMessage.findMany({
       where: { userId, status: "pending" },
     });
     if (pending.length === 0) return;
 
     const key = makeKey(userId, deviceId);
-    const waClient = client || this.clients.get(key);
-    if (!waClient) return;
+    const waSocket = sock || this.sockets.get(key);
+    if (!waSocket) return;
 
     for (const msg of pending) {
       try {
-        const chatId = msg.to.includes("@") ? msg.to : `${msg.to}@c.us`;
-        await waClient.sendMessage(chatId, msg.body);
-        await this.db.whatsAppMessage.update({
+        const jid = toJID(msg.to);
+        await waSocket.sendMessage(jid, { text: msg.body });
+        await prisma.whatsAppMessage.update({
           where: { id: msg.id },
           data: { status: "sent" },
         });
@@ -524,21 +579,6 @@ class WhatsAppManager {
       await new Promise((r) => setTimeout(r, 1200));
     }
   }
-
-  private async waitForStoreReady(client: Client, retries = 10, delay = 500) {
-    for (let i = 0; i < retries; i++) {
-      try {
-        await client.getChats();
-        return;
-      } catch {
-        if (i < retries - 1) await new Promise((r) => setTimeout(r, delay));
-      }
-    }
-  }
-
-  private getSessionPath(userId: string, deviceId: string) {
-    return path.join(SESSION_DIR, `${userId}_${deviceId}`);
-  }
 }
 
-export const whatsappManager = new WhatsAppManager();
+export const whatsappManager = new BaileysManager();
