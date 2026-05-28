@@ -8,8 +8,8 @@ description: WhatsApp device lifecycle, messaging, webhooks, and chatbot rules
 ## Overview
 WhatsApp device lifecycle, messaging, webhooks, and chatbot rules via `lib/whatsapp.ts`.
 
-## Core Module: `WhatsAppManager` (`lib/whatsapp.ts`)
-Singleton class keyed by `userId`. Manages multiple `whatsapp-web.js` `Client` instances.
+## Core Module: `BaileysManager` (`lib/whatsapp.ts`)
+Singleton class keyed by `userId_deviceId`. Manages multiple `@whiskeysockets/baileys` `WASocket` instances over WebSocket (no browser).
 
 ```typescript
 import { whatsappManager } from "@/lib/whatsapp";
@@ -18,38 +18,44 @@ import { whatsappManager } from "@/lib/whatsapp";
 ## Connection Lifecycle (Required)
 
 ```
-connect → QR generation → connected (ready) → message listening
-                                    ↓
-                            disconnected ←── (events)
+connect → QR/pairing code → open → message listening
+                   ↓
+             disconnected ←── (events)
+                   ↓
+             loggedOut → jangan reconnect
 ```
 
 ### Key Methods
 ```typescript
-whatsappManager.startConnect(userId, timeoutMs)      // Fire-and-forget connection
-await whatsappManager.getStatus(userId)               // Returns { status, phone, qrCode }
-const qr = whatsappManager.getQR(userId)              // Current QR code string
-await whatsappManager.disconnect(userId)              // Destroy client, update DB
-const contacts = await whatsappManager.getContacts(userId)
-await whatsappManager.sendMessage(userId, to, body, media)
+whatsappManager.startConnect(userId, timeoutMs, deviceId)        // Fire-and-forget connection
+await whatsappManager.startPairing(userId, phone, deviceId)       // Pairing code flow, returns code
+await whatsappManager.getStatus(userId, deviceId)                 // Returns { status, phone, qrCode }
+const qr = whatsappManager.getQR(userId, deviceId)                // Current QR code string
+await whatsappManager.disconnect(userId, deviceId)                // End socket, update DB
+const contacts = await whatsappManager.getContacts(userId, deviceId)
+await whatsappManager.sendMessage(userId, to, body, media, deviceId, location)
 ```
 
-## Event Handlers
+## Event Handlers (Baileys)
 All handlers update both **in-memory state** and the **database** simultaneously:
 
 | Event | Action |
 |-------|--------|
-| `qr` | Upserts QR code to `WhatsAppSession` table |
-| `ready` | Updates status to connected, retries pending messages |
-| `message_ack` | Tracks delivery status, fires webhooks |
-| `disconnected` | Updates session status to disconnected |
-| `message` (incoming) | Stores message, runs chatbot, fires webhook |
+| `connection.update` (qr) | Upserts QR/pairing code to `WhatsAppSession` table |
+| `connection.update` (open) | Updates status to connected, retries pending messages |
+| `connection.update` (close) | Handles reconnect (exponential backoff) or loggedOut |
+| `messages.update` | Tracks delivery status (`1=sent, 2=delivered, 3=read`), fires webhooks |
+| `messages.upsert` (incoming) | Stores message, runs chatbot, fires webhook |
+| `contacts.upsert` | Populates in-memory contacts cache |
+| `creds.update` | Auto-saves auth credentials to `BaileysAuthCred` table |
 
 ## Messaging
 
 ### Send Single Message
 ```typescript
-await whatsappManager.sendMessage(userId, "+628123456789", "Hello!", media)
+await whatsappManager.sendMessage(userId, "+628123456789", "Hello!", media, deviceId, location)
 // media: { base64: string; mimetype: string; filename: string } | null
+// location: { latitude: number; longitude: number; title?: string } | null
 ```
 
 ### Phone Validation (use before sending — Required)
@@ -114,18 +120,39 @@ const body = interpolate("Hi {{name}}", { name: "John" });    // "Hi John"
 ```
 
 ## Session Storage
-- **Local Auth**: `wa_sessions/<userId>/` directory
+- **Auth state**: `BaileysAuthCred` model (Prisma-based `SignalKeyStore` with caching)
 - **Database**: `WhatsAppSession` model tracks connection state
-- **Puppeteer**: headless with `--no-sandbox` flag
+- **No browser**: Baileys uses WebSocket murni
+
+## Auth Helper (`lib/baileys-auth.ts`)
+```typescript
+import { usePrismaAuthState } from "@/lib/baileys-auth";
+
+const { state, saveCreds } = await usePrismaAuthState(userId, deviceId);
+// state.creds → AuthenticationCreds
+// state.keys → SignalKeyStore (wrapped with makeCacheableSignalKeyStore)
+// saveCreds() → triggered by creds.update event
+```
+
+## JID Format
+Gunakan `toJID()` helper dari `lib/whatsapp.ts` untuk semua konversi nomor:
+```typescript
+import { toJID } from "@/lib/whatsapp";
+
+toJID("628123456789")           // → "628123456789@s.whatsapp.net"
+toJID("628123456789@c.us")      // → "628123456789@s.whatsapp.net"
+toJID("123@g.us")               // → "123@g.us" (group, unchanged)
+toJID("628123456789@s.whatsapp.net") // → unchanged
+```
 
 ## API Endpoints
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/whatsapp/connect` | POST | Start device connection |
+| `/api/whatsapp/connect` | POST | Start device connection (QR or pairing code) |
 | `/api/whatsapp/status` | GET | Get connection status |
-| `/api/whatsapp/qrcode` | GET | Get current QR code |
+| `/api/whatsapp/qrcode` | GET | Get current QR/pairing code |
 | `/api/whatsapp/disconnect` | POST | Disconnect device |
-| `/api/whatsapp/contacts` | GET | Fetch WhatsApp contacts |
+| `/api/whatsapp/contacts` | GET | Fetch WhatsApp contacts (from cache) |
 
 ## Best Practices (Required)
 
@@ -135,8 +162,10 @@ const body = interpolate("Hi {{name}}", { name: "John" });    // "Hi John"
 - Handle "not connected" with pending message fallback (202 accepted)
 - Update in-memory state AND database simultaneously in event handlers
 - Use `?.` for optional chaining on WhatsApp objects (phone, qrCode may be null)
+- Call `toJID()` on every `to` parameter before passing to `sock.sendMessage()`
 
 ### Don't ❌
 - Don't call `startConnect()` multiple times — it's idempotent
 - Don't block on webhook delivery — fire-and-forget pattern
+- Don't auto-reconnect on `DisconnectReason.loggedOut` — notify user instead
 - Don't forget to run `prisma generate` after schema changes involving WhatsApp models

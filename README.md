@@ -1,6 +1,6 @@
 # WhatsApp Gateway Service
 
-A full-featured WhatsApp Gateway built with Next.js 16, PostgreSQL, and whatsapp-web.js. Send and receive WhatsApp messages through a web dashboard or REST API.
+A full-featured WhatsApp Gateway built with Next.js 16, PostgreSQL, and @whiskeysockets/baileys. Send and receive WhatsApp messages through a web dashboard or REST API.
 
 ## Features
 
@@ -11,7 +11,7 @@ A full-featured WhatsApp Gateway built with Next.js 16, PostgreSQL, and whatsapp
 - **Broadcast** — Send bulk messages to multiple contacts with automatic rate limiting
 - **Message History** — Paginated list with status filters (sent, delivered, failed, pending)
 - **Contacts** — Manage contact list (add, delete)
-- **WhatsApp Device** — Connect your WhatsApp number via QR code (whatsapp-web.js)
+- **WhatsApp Device** — Connect your WhatsApp number via QR code or pairing code (Baileys)
 - **API Keys** — Generate and revoke API keys for programmatic access
 - **Webhook Settings** — Configure webhook URL for incoming message notifications
 - **REST API** — All features accessible via API endpoints
@@ -23,7 +23,7 @@ A full-featured WhatsApp Gateway built with Next.js 16, PostgreSQL, and whatsapp
 | Framework | Next.js 16.2.6 (App Router, Turbopack) |
 | Database | PostgreSQL via Prisma ORM |
 | Auth | JWT (httpOnly cookies), bcryptjs |
-| WhatsApp | whatsapp-web.js (Puppeteer) |
+| WhatsApp | @whiskeysockets/baileys v6 (WebSocket, no browser) |
 | Styling | Tailwind CSS v4 |
 | Runtime | Node.js 22+ |
 
@@ -84,6 +84,7 @@ JWT_SECRET=your-super-secret-jwt-key-change-in-production
 | `ApiKey` | API access tokens per user |
 | `Settings` | Webhook URL and secret per user |
 | `WhatsAppSession` | WhatsApp device connection state |
+| `BaileysAuthCred` | WhatsApp auth credentials (Prisma-based SignalKeyStore) |
 | `WebhookEvent` | Incoming webhook event logs |
 
 ## API Endpoints
@@ -137,19 +138,25 @@ JWT_SECRET=your-super-secret-jwt-key-change-in-production
 ### WhatsApp Device
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/whatsapp/connect` | Start device connection |
+| POST | `/api/whatsapp/connect` | Start device connection (QR) or `{ "phone": "628..." }` for pairing code |
 | GET | `/api/whatsapp/status` | Get connection status |
-| GET | `/api/whatsapp/qrcode` | Get current QR code |
+| GET | `/api/whatsapp/qrcode` | Get current QR/pairing code |
 | POST | `/api/whatsapp/disconnect` | Disconnect device |
 
 ## WhatsApp Connection
 
+### QR Code
 1. Navigate to **Dashboard → Device**
 2. Click **Connect**
-3. Wait for Puppeteer to launch (may take a few seconds)
-4. Scan the QR code with WhatsApp on your phone
+3. Scan the QR code with WhatsApp on your phone
+4. Status changes to **Connected**
+
+### Pairing Code (no QR scan needed)
+1. POST to `/api/whatsapp/connect` with `{ "phone": "628123456789" }`
+2. Returns an 8-digit pairing code
+3. Open WhatsApp → Linked Devices → Link a Device
+4. Enter the pairing code instead of scanning QR
 5. Status changes to **Connected**
-6. Send messages via **Dashboard → Send Message** or the REST API
 
 ## Development
 
@@ -172,8 +179,7 @@ npm run build
 For production:
 1. Use a managed PostgreSQL service
 2. Set a strong `JWT_SECRET` in environment variables
-3. Ensure Puppeteer dependencies are installed (required by whatsapp-web.js)
-4. Use Docker Compose for containerized deployment
+3. Use Docker Compose for containerized deployment
 
 ## License
 

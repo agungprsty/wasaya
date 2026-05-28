@@ -42,7 +42,7 @@ This project uses Next.js 16.2.6 with Turbopack (default bundler). The following
 | Language | TypeScript 5+ (strict mode) |
 | Database | PostgreSQL + Prisma ORM v6 |
 | Auth | JWT (httpOnly cookies), bcryptjs |
-| WhatsApp | whatsapp-web.js v1.34.7 (Puppeteer headless `--no-sandbox`) |
+| WhatsApp | @whiskeysockets/baileys v6.7.23 (WebSocket murni, tanpa browser) |
 | Styling | Tailwind CSS v4 (`@import "tailwindcss"`) |
 | Linting | ESLint v9 (flat config, `eslint.config.mjs`) |
 | Package manager | npm |
@@ -58,7 +58,6 @@ lib/           # Shared utilities & business logic (no imports from app/)
 types/         # Global TypeScript declarations
 prisma/        # Prisma schema + migrations
 public/        # Static assets
-wa_sessions/   # WhatsApp session data (LocalAuth storage)
 ```
 
 ## Path Alias
@@ -183,8 +182,11 @@ export async function GET(request: NextRequest) {
 - Enum-like values stored as plain `String` (not native Prisma enums) with documented status values
 
 ## WhatsApp Module Patterns
-- `WhatsAppManager` is a **singleton class** keyed by `userId`
-- Connection lifecycle: `connect → QR generation → ready → message listening`
+- `BaileysManager` is a **singleton class** keyed by `userId_deviceId`
+- Connection lifecycle: `connect → QR/pairing code → open → message listening`
+- Auth state stored in DB via `BaileysAuthCred` model (Prisma-based `SignalKeyStore`)
+- Contacts populated via `contacts.upsert` event (in-memory cache)
+- Reconnect with exponential backoff (max 5 retries)
 - Event handlers update both in-memory state and database simultaneously
 - Fire-and-forget pattern for non-blocking operations (e.g., `startConnect()`)
 
@@ -216,6 +218,7 @@ export async function GET(request: NextRequest) {
 - Don't call `next lint` — use `npm run lint` (ESLint CLI directly)
 - Don't forget to run `npx prisma generate` before `npm run build`
 - Don't modify `lib/` files to import from `app/` — `lib/` is a leaf module
+- Don't use deprecated `whatsapp-web.js` — use `BaileysManager` from `@/lib/whatsapp`
 - Don't use deprecated patterns: `next/legacy/image`, `images.domains`, `unstable_` prefixed APIs
 
 ---
