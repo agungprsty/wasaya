@@ -24,10 +24,25 @@ interface Analytics {
   };
 }
 
+const TIER_DAILY_LIMITS: Record<string, number> = {
+  free: 50,
+  pro: 200,
+  enterprise: Infinity,
+};
+
+const TIER_MONTHLY_LIMITS: Record<string, number> = {
+  free: 500,
+  pro: 5_000,
+  enterprise: Infinity,
+};
+
 export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [days, setDays] = useState(7);
   const [webhookUrl, setWebhookUrl] = useState("");
+  const [tier, setTier] = useState("free");
+  const [dailySent, setDailySent] = useState(0);
+  const [monthlySent, setMonthlySent] = useState(0);
 
   useEffect(() => {
     Promise.all([
@@ -36,12 +51,24 @@ export default function DashboardPage() {
     ]).then(([a, s]) => {
       setAnalytics(a);
       setWebhookUrl(s.settings?.webhookUrl || "");
+      if (s.subscription) {
+        setTier(s.subscription.tier ?? "free");
+      }
+      if (s.usage) {
+        setDailySent(s.usage.daily ?? 0);
+        setMonthlySent(s.usage.monthly ?? 0);
+      }
     });
   }, [days]);
 
   const summary = analytics?.summary;
 
-  const maxVal = analytics
+  const dailyLimit = TIER_DAILY_LIMITS[tier] ?? 50;
+  const monthlyLimit = TIER_MONTHLY_LIMITS[tier] ?? 500;
+  const dailyPct = dailyLimit === Infinity ? 0 : Math.min(100, Math.round((dailySent / dailyLimit) * 100));
+  const monthlyPct = monthlyLimit === Infinity ? 0 : Math.min(100, Math.round((monthlySent / monthlyLimit) * 100));
+
+  const maxVal = analytics?.daily?.length
     ? Math.max(
         ...analytics.daily.flatMap((d) => [d.sent + d.delivered + d.failed + d.received]),
         1
@@ -49,6 +76,14 @@ export default function DashboardPage() {
     : 1;
 
   const barHeight = (val: number) => Math.max(4, (val / maxVal) * 140);
+
+  const totalSent = summary?.totalSent ?? 0;
+  const totalReceived = summary?.totalReceived ?? 0;
+  const totalFailed = summary?.totalFailed ?? 0;
+  const totalAll = totalSent + totalReceived + totalFailed;
+  const deg = (val: number) => totalAll > 0 ? (val / totalAll) * 360 : 0;
+  const sentDeg = deg(totalSent);
+  const receivedDeg = deg(totalReceived);
 
   return (
     <div className="mx-auto w-full max-w-7xl px-6 py-10">
@@ -93,7 +128,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {analytics && analytics.daily.length > 0 && (
+      {analytics?.daily && analytics.daily.length > 0 && (
         <div className="mb-10 rounded-xl border border-[#DCF8C6] bg-white p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-semibold text-[#075E54]">Message Trend ({days} days)</h2>
@@ -113,7 +148,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-end gap-1.5" style={{ height: 150 }}>
-            {analytics.daily.map((d) => {
+            {analytics!.daily.map((d) => {
               const sentH = d.sent + d.delivered;
               const receivedH = d.received;
               const failedH = d.failed;
@@ -159,6 +194,103 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Distribution + Usage Analytics */}
+      <div className="mb-10 grid gap-6 lg:grid-cols-3">
+        {/* Donut Chart */}
+        <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
+          <h2 className="text-base font-semibold text-[#075E54]">Distribution</h2>
+          <div className="mt-5 flex items-center justify-center">
+            {totalAll > 0 ? (
+              <div className="relative h-32 w-32">
+                <div
+                  className="h-full w-full rounded-full"
+                  style={{
+                    background: `conic-gradient(#25D366 0deg ${sentDeg}deg, #60A5FA ${sentDeg}deg ${sentDeg + receivedDeg}deg, #F87171 ${sentDeg + receivedDeg}deg 360deg)`,
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex h-32 w-32 items-center justify-center rounded-full border-2 border-dashed border-zinc-200">
+                <span className="text-xs text-zinc-400">Belum ada data</span>
+              </div>
+            )}
+          </div>
+          <div className="mt-4 flex justify-center gap-5 text-xs">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#25D366]" />
+              Sent {totalSent}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-400" />
+              Received {totalReceived}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-400" />
+              Failed {totalFailed}
+            </span>
+          </div>
+        </div>
+
+        {/* Tier Usage */}
+        <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
+          <h2 className="text-base font-semibold text-[#075E54]">Usage / Limits</h2>
+          <div className="mt-5 space-y-4">
+            <div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-zinc-700">Harian</span>
+                <span className="text-zinc-500">{dailySent.toLocaleString("id-ID")} / {dailyLimit === Infinity ? "∞" : dailyLimit.toLocaleString("id-ID")}</span>
+              </div>
+              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-100">
+                <div
+                  className={`h-full rounded-full transition-all ${dailyPct >= 80 ? "bg-red-500" : dailyPct >= 50 ? "bg-yellow-500" : "bg-[#25D366]"}`}
+                  style={{ width: `${dailyPct}%` }}
+                />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-zinc-700">Bulanan</span>
+                <span className="text-zinc-500">{monthlySent.toLocaleString("id-ID")} / {monthlyLimit === Infinity ? "∞" : monthlyLimit.toLocaleString("id-ID")}</span>
+              </div>
+              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-100">
+                <div
+                  className={`h-full rounded-full transition-all ${monthlyPct >= 80 ? "bg-red-500" : monthlyPct >= 50 ? "bg-yellow-500" : "bg-[#25D366]"}`}
+                  style={{ width: `${monthlyPct}%` }}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 text-xs text-zinc-400">
+            Tier: <span className="font-medium text-zinc-600">{tier === "enterprise" ? "Enterprise" : tier === "pro" ? "Pro" : "Free"}</span>
+          </div>
+        </div>
+
+        {/* Insights */}
+        <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">
+          <h2 className="text-base font-semibold text-[#075E54]">Insights</h2>
+          <div className="mt-5 space-y-4">
+            <div>
+              <p className="text-sm font-medium text-zinc-700">Busiest Hour</p>
+              <p className="mt-1 text-2xl font-bold text-[#075E54]">
+                {summary?.busiestHour ?? 0}:00
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-zinc-700">Top Recipient</p>
+              <p className="mt-1 text-sm text-zinc-600 truncate">
+                {summary?.topRecipient ? `${summary.topRecipient} (${summary.topRecipientCount}x)` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-zinc-700">Success Rate</p>
+              <p className={`mt-1 text-2xl font-bold ${(summary?.successRate ?? 100) >= 80 ? "text-[#25D366]" : (summary?.successRate ?? 100) >= 50 ? "text-yellow-500" : "text-red-500"}`}>
+                {summary?.successRate ?? 100}%
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-[#DCF8C6] bg-white p-6">

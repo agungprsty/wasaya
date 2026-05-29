@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { interpolate } from "@/lib/template-utils";
-import { whatsappManager } from "@/lib/whatsapp";
 
 export async function processChatbot(
   userId: string,
@@ -29,10 +28,9 @@ export async function processChatbot(
 export async function processAutoReply(
   userId: string,
   from: string,
-  deviceId = "main",
-): Promise<boolean> {
+): Promise<string | null> {
   const settings = await prisma.settings.findUnique({ where: { userId } });
-  if (!settings?.autoReplyActive || !settings?.autoReplyText) return false;
+  if (!settings?.autoReplyActive || !settings?.autoReplyText) return null;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -44,15 +42,13 @@ export async function processAutoReply(
       repliedAt: { gte: today },
     },
   });
-  if (alreadyReplied) return false;
+  if (alreadyReplied) return null;
 
-  try {
-    await whatsappManager.sendMessage(userId, from, settings.autoReplyText, null, deviceId);
-    await prisma.autoReplyLog.create({
-      data: { userId, contact: from },
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  return settings.autoReplyText;
+}
+
+export async function markAutoReplySent(userId: string, from: string): Promise<void> {
+  await prisma.autoReplyLog.create({
+    data: { userId, contact: from },
+  }).catch(() => {});
 }

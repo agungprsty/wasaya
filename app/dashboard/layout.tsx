@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Toaster } from "sonner";
+import LimitWatcher from "./limit-watcher";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: "M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zm0 9.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" },
@@ -20,11 +22,20 @@ const navItems = [
   { href: "/docs", label: "API Docs", icon: "M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" },
 ];
 
+const TIER_DAILY_LIMITS: Record<string, number> = {
+  free: 50,
+  pro: 200,
+  enterprise: Infinity,
+};
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [tier, setTier] = useState("free");
+  const [dailySent, setDailySent] = useState(0);
+  const [dailyLimit, setDailyLimit] = useState(50);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -32,9 +43,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .then((data) => {
         if (!data?.user) { router.push("/login"); return; }
         setUser(data.user);
+        if (data.subscription) {
+          setTier(data.subscription.tier);
+          setDailySent(data.subscription.dailySentCount ?? 0);
+          setDailyLimit(TIER_DAILY_LIMITS[data.subscription.tier] ?? 50);
+        }
       })
       .catch(() => router.push("/login"));
   }, [router]);
+
+  const isFree = tier === "free";
+  const dailyPct = dailyLimit === Infinity ? 0 : Math.min(100, Math.round((dailySent / dailyLimit) * 100));
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -90,6 +109,54 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
+        {/* Safety Indicator */}
+        <div className="border-t border-[#DCF8C6] px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${
+                dailyPct >= 80 ? "bg-red-500" : dailyPct >= 50 ? "bg-yellow-500" : "bg-[#25D366]"
+              }`}
+            />
+            <span className="text-xs font-medium text-zinc-600">
+              {dailyPct >= 80 ? "Berisiko" : dailyPct >= 50 ? "Waspada" : "Aman"}
+            </span>
+            <span className="ml-auto text-[10px] text-zinc-400">
+              {dailyPct}% harian
+            </span>
+          </div>
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+            <div
+              className={`h-full rounded-full transition-all ${
+                dailyPct >= 80 ? "bg-red-500" : dailyPct >= 50 ? "bg-yellow-500" : "bg-[#25D366]"
+              }`}
+              style={{ width: `${dailyPct}%` }}
+            />
+          </div>
+
+          {/* Tier badge */}
+          <div className="mt-2 flex items-center gap-2">
+            <span
+              className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                tier === "enterprise"
+                  ? "bg-purple-100 text-purple-700"
+                  : tier === "pro"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-zinc-100 text-zinc-600"
+              }`}
+            >
+              {tier === "enterprise" ? "Enterprise" : tier === "pro" ? "Pro" : "Free"}
+            </span>
+            {isFree && (
+              <Link
+                href="/pricing"
+                className="ml-auto rounded-md bg-[#25D366] px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-[#1DAF5A]"
+              >
+                Upgrade
+              </Link>
+            )}
+          </div>
+        </div>
+
         <div className="border-t border-[#DCF8C6] p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#075E54] text-xs font-semibold text-white">
@@ -124,6 +191,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
         {children}
+        <LimitWatcher />
+        <Toaster position="top-right" richColors closeButton />
       </div>
     </div>
   );

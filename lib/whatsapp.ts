@@ -1,9 +1,12 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { deliverWebhook } from "@/lib/webhook";
-import { processChatbot, processAutoReply } from "@/lib/chatbot";
+import { processChatbot, processAutoReply, markAutoReplySent } from "@/lib/chatbot";
+import { sleep, calculateTypingDelay, jitterDelay, humanDelay } from "@/lib/delay-engine";
 import { waLogger } from "@/lib/logger";
 import { usePrismaAuthState } from "@/lib/baileys-auth";
+import { safetyMonitor } from "@/lib/safety-monitor";
+import { SocksProxyAgent } from "socks-proxy-agent";
 import makeWASocket, {
   DisconnectReason,
   fetchLatestWaWebVersion,
@@ -231,12 +234,22 @@ class BaileysManager {
       this.saveCredsFns.set(key, saveCreds);
     }
 
-    const sock = makeWASocket({
+    const deviceSession = await prisma.whatsAppSession.findUnique({
+      where: { userId_deviceId: { userId, deviceId } },
+    });
+
+    const socketOptions: Record<string, unknown> = {
       auth: state,
       version: await getLatestVersion(),
       logger: waLogger,
       emitOwnEvents: false,
-    });
+    };
+
+    if (deviceSession?.proxyUrl) {
+      socketOptions.agent = new SocksProxyAgent(deviceSession.proxyUrl);
+    }
+
+    const sock = makeWASocket(socketOptions as any);
 
     sock.ev.on("creds.update", () => {
       const p = saveCreds().catch(() => {});
@@ -299,19 +312,18 @@ class BaileysManager {
 
         const isManual = this.manualDisconnects.has(key);
         if (!isManual) {
-          const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-          if (statusCode !== DisconnectReason.loggedOut) {
-            await (this.credsSavePromises.get(key) ?? Promise.resolve());
-            await (this.saveCredsFns.get(key)?.() ?? Promise.resolve());
-            const retries = this.reconnectRetries.get(key) || 0;
-            if (retries < MAX_RECONNECT_RETRIES) {
-              const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, retries);
-              this.reconnectRetries.set(key, retries + 1);
-              setTimeout(() => {
-                this.startConnect(userId, 0, deviceId).catch(() => {});
-              }, delay);
-              return;
-            }
+          const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode ?? 0;
+          safetyMonitor.recordError(userId, deviceId, statusCode).catch(() => {});
+          await (this.credsSavePromises.get(key) ?? Promise.resolve());
+          await (this.saveCredsFns.get(key)?.() ?? Promise.resolve());
+          const retries = this.reconnectRetries.get(key) || 0;
+          if (retries < MAX_RECONNECT_RETRIES) {
+            const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, retries);
+            this.reconnectRetries.set(key, retries + 1);
+            setTimeout(() => {
+              this.startConnect(userId, 0, deviceId).catch(() => {});
+            }, delay);
+            return;
           }
         }
 
@@ -355,21 +367,57 @@ class BaileysManager {
           },
         });
 
-        const autoReplied = await processAutoReply(userId, jid, deviceId).catch(() => false);
-        if (autoReplied) return;
+        let replyText: string | null = null;
+        let isAutoReply = false;
 
-        const reply = await processChatbot(userId, jid, body).catch(() => null);
-        if (reply) {
-          this.sendMessage(userId, jid, reply, null, deviceId).catch(() => {});
-          return;
+        const autoReplyText = await processAutoReply(userId, jid).catch(() => null);
+        if (autoReplyText) {
+          replyText = autoReplyText;
+          isAutoReply = true;
         }
 
-        deliverWebhook(userId, "message.received", {
-          id: record.id,
-          from: jid,
-          body,
-          timestamp: record.timestamp.toISOString(),
-        }).catch(() => {});
+        if (!replyText) {
+          replyText = await processChatbot(userId, jid, body).catch(() => null);
+        }
+
+        const settings = await prisma.settings.findUnique({ where: { userId } }).catch(() => null);
+        const msPerChar = settings?.msPerChar ?? 100;
+        const readDelayMs = settings?.readDelayMs ?? 1500;
+        const typingEnabled = settings?.typingEnabled ?? true;
+
+        if (replyText) {
+          const readingDelay = jitterDelay(readDelayMs);
+          await sleep(readingDelay);
+
+          if (typingEnabled) {
+            sock.sendPresenceUpdate("composing", jid).catch(() => {});
+          }
+
+          const typingDelay = calculateTypingDelay(replyText, msPerChar);
+          await sleep(typingDelay);
+
+          await this.sendMessage(userId, jid, replyText, null, deviceId, null, msg.key);
+
+          if (isAutoReply) {
+            markAutoReplySent(userId, jid).catch(() => {});
+          }
+
+          await sleep(jitterDelay(500));
+          sock.readMessages([msg.key]).catch(() => {});
+        } else {
+          const readingDelay = jitterDelay(readDelayMs);
+          await sleep(readingDelay);
+          sock.readMessages([msg.key]).catch(() => {});
+        }
+
+        if (!replyText) {
+          deliverWebhook(userId, "message.received", {
+            id: record.id,
+            from: jid,
+            body,
+            timestamp: record.timestamp.toISOString(),
+          }).catch(() => {});
+        }
       }
     });
 
@@ -584,9 +632,15 @@ class BaileysManager {
     media: { base64: string; mimetype: string; filename?: string } | null = null,
     deviceId = "main",
     location?: { latitude: number; longitude: number; title?: string } | null,
+    quotedMsg?: unknown,
   ) {
     await this.ensureInitialized().catch(() => {});
     if (body) body = await this.applyWatermark(userId, body);
+
+    const isQ = await safetyMonitor.isQuarantined(userId, deviceId);
+    if (isQ) {
+      throw new Error("Device is quarantined due to safety violations");
+    }
 
     const key = makeKey(userId, deviceId);
     const session = await prisma.whatsAppSession.findUnique({
@@ -600,6 +654,18 @@ class BaileysManager {
     if (!sock) throw new Error("WhatsApp not connected");
 
     const jid = toJID(to);
+
+    const settings = await prisma.settings.findUnique({ where: { userId } }).catch(() => null);
+    const typingEnabled = settings?.typingEnabled ?? true;
+
+    if (typingEnabled && body && !jid.includes("@g.us")) {
+      if (Math.random() < 0.33) {
+        sock.sendPresenceUpdate("available").catch(() => {});
+      }
+      sock.sendPresenceUpdate("composing", jid).catch(() => {});
+      await humanDelay("direct-send", body.length);
+      sock.sendPresenceUpdate("paused", jid).catch(() => {});
+    }
 
     if (location) {
       await sock.sendMessage(jid, {
@@ -630,7 +696,11 @@ class BaileysManager {
       }
       await sock.sendMessage(jid, content);
     } else if (body) {
-      await sock.sendMessage(jid, { text: body });
+      const textContent: any = { text: body };
+      if (quotedMsg && Math.random() < 0.7) {
+        textContent.quoted = quotedMsg;
+      }
+      await sock.sendMessage(jid, textContent);
     } else if (!location) {
       throw new Error("Nothing to send");
     }
@@ -667,7 +737,7 @@ class BaileysManager {
           data: { status: "sent" },
         });
       } catch {}
-      await new Promise((r) => setTimeout(r, 1200));
+      await humanDelay("retry");
     }
   }
 }

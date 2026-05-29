@@ -20,6 +20,7 @@ model User {
   contacts       Contact[]
   messages       WhatsAppMessage[]
   settings       Settings?
+  subscription   Subscription?
   whatsAppSessions WhatsAppSession[]
   autoReplyLogs  AutoReplyLog[]
   templates      MessageTemplate[]
@@ -90,14 +91,34 @@ model WhatsAppMessage {
 }
 
 model Settings {
-  id              String  @id @default(uuid())
-  userId          String  @unique
+  id              String   @id @default(uuid())
+  userId          String   @unique
   webhookUrl      String?
   webhookSecret   String?
   autoReplyText   String?
-  autoReplyActive Boolean @default(false)
+  autoReplyActive Boolean  @default(false)
   watermarkText   String?
-  watermarkActive Boolean @default(false)
+  watermarkActive Boolean  @default(false)
+
+  msPerChar        Int    @default(100)
+  readDelayMs      Int    @default(1500)
+  typingEnabled    Boolean @default(true)
+  broadcastEnabled Boolean @default(false)
+  concurrency                Int    @default(1)
+  adminNumbers               String[] @default([])
+  safetyMode                 String   @default("normal")
+  enterpriseCustomSettings   Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  tier      String   @default("free")
+  accountAge String   @default("newborn")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -121,8 +142,16 @@ model WhatsAppSession {
   status     String   @default("disconnected")
   phone      String?
   qrCode     String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  proxyUrl   String?
+  dailyCount       Int      @default(0)
+  monthlyCount     Int      @default(0)
+  outboundCount    Int      @default(0)
+  inboundCount     Int      @default(0)
+  safetyViolations Int      @default(0)
+  lastViolationAt  DateTime?
+  isQuarantined    Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
