@@ -4,7 +4,7 @@ import AuthNavButtons from "./AuthNavButtons";
 const features = [
   {
     title: "Kirim Pesan",
-    desc: "Kirim pesan WhatsApp dengan mudah, lengkap dengan dukungan media seperti gambar, PDF, dan dokumen lainnya.",
+    desc: "Kirim pesan individu dengan dukungan media (gambar, PDF, video), lokasi, dan template variabel.",
     icon: (
       <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.125A59.769 59.769 0 0121.485 12 59.768 59.768 0 013.27 20.875L5.999 12zm0 0h7.5" />
@@ -13,7 +13,7 @@ const features = [
   },
   {
     title: "Broadcast Massal",
-    desc: "Kirim pesan ke ratusan kontak sekaligus dengan rate limiting otomatis untuk mencegah pemblokiran.",
+    desc: "Kirim pesan ke ratusan kontak sekaligus dengan rate limiting otomatis dan jeda alami untuk mencegah pemblokiran.",
     icon: (
       <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
@@ -21,17 +21,8 @@ const features = [
     ),
   },
   {
-    title: "Template Pesan",
-    desc: "Simpan template pesan dengan placeholder yang bisa dipakai ulang untuk kirim pesan cepat dan konsisten.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-      </svg>
-    ),
-  },
-  {
     title: "Pesan Terjadwal",
-    desc: "Jadwalkan pesan otomatis di waktu tertentu — cocok untuk pengingat, promo, dan campaign berkala.",
+    desc: "Jadwalkan pesan satu kali atau berulang (harian/mingguan/bulanan) untuk pengingat, promo, dan campaign berkala.",
     icon: (
       <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -40,7 +31,7 @@ const features = [
   },
   {
     title: "Bot Auto-Balas",
-    desc: "Buat aturan chatbot berbasis kata kunci yang otomatis membalas pesan pelanggan 24/7 tanpa perlu staff.",
+    desc: "Buat aturan chatbot berbasis kata kunci dengan prioritas. Balas otomatis 24/7 tanpa perlu staff.",
     icon: (
       <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
@@ -48,38 +39,83 @@ const features = [
     ),
   },
   {
-    title: "Grup Kontak",
-    desc: "Kelompokkan kontak ke dalam grup untuk broadcast tertarget dan kampanye tersegmentasi.",
+    title: "Template Pesan",
+    desc: "Simpan template dengan placeholder variabel yang bisa dipakai ulang untuk kirim pesan cepat dan konsisten.",
+    icon: (
+      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+      </svg>
+    ),
+  },
+  {
+    title: "Kontak & Grup",
+    desc: "Kelola kontak dengan import CSV, ekspor, dan kelompokkan ke dalam grup untuk broadcast tertarget.",
     icon: (
       <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
       </svg>
     ),
   },
-  // {
-  //   title: "Webhook Integration",
-  //   desc: "Terima event pesan real-time via webhook yang ditandatangani HMAC, lengkap dengan retry otomatis.",
-  //   icon: (
-  //     <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-  //       <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
-  //     </svg>
-  //   ),
-  // },
-  // {
-  //   title: "RESTful API",
-  //   desc: "Akses penuh ke REST API untuk semua fitur — kirim, kelola, dan pantau dari aplikasi Anda.",
-  //   icon: (
-  //     <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-  //       <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
-  //     </svg>
-  //   ),
-  // },
+  {
+    title: "Dashboard Analitik",
+    desc: "Pantau tren pengiriman, success rate, jam sibuk, rasio terima-kirim, dan usage limit dalam satu tampilan.",
+    icon: (
+      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+      </svg>
+    ),
+  },
+  {
+    title: "Multi-Perangkat",
+    desc: "Hubungkan lebih dari satu nomor WhatsApp via QR code atau pairing code. Kelola dari satu dashboard.",
+    icon: (
+      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
+      </svg>
+    ),
+  },
+  {
+    title: "REST API & API Keys",
+    desc: "Akses penuh REST API dengan API Key (`wag_*`) untuk integrasi aplikasi eksternal secara aman.",
+    icon: (
+      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+      </svg>
+    ),
+  },
+  {
+    title: "Webhook & Integrasi",
+    desc: "Terima event pesan real-time via webhook HMAC-signature. Cocok untuk notifikasi, OTP, dan customer service.",
+    icon: (
+      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+      </svg>
+    ),
+  },
+  {
+    title: "Simulasi Manusia",
+    desc: "Typing indicator, jeda baca, dan delay dinamis per karakter — bot terlihat seperti manusia untuk anti-ban.",
+    icon: (
+      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+      </svg>
+    ),
+  },
+  {
+    title: "Watermark Branding",
+    desc: "Tambahkan watermark otomatis di setiap pesan keluar — cocok untuk branding bisnis Anda.",
+    icon: (
+      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.25 6.393a15.996 15.996 0 00-4.647 4.763m-3.42 3.42a1.5 1.5 0 01-.879 1.213 15.99 15.99 0 003.42 3.42z" />
+      </svg>
+    ),
+  },
 ];
 
 const steps = [
   { num: "01", title: "Buat Akun", desc: "Daftar gratis dan dapatkan akses ke dashboard dalam hitungan menit." },
-  { num: "02", title: "Hubungkan WhatsApp", desc: "Scan QR code untuk menghubungkan nomor WhatsApp Anda — tanpa perlu HP tambahan." },
-  { num: "03", title: "Mulai Kirim Pesan", desc: "Kirim pesan satuan atau broadcast ke banyak kontak dengan template siap pakai." },
+  { num: "02", title: "Hubungkan WhatsApp", desc: "Scan QR code atau gunakan pairing code untuk menghubungkan nomor Anda." },
+  { num: "03", title: "Mulai Kirim Pesan", desc: "Kirim pesan satuan, broadcast, atau jadwalkan — semua dari satu dashboard." },
 ];
 
 const plans = [
@@ -92,14 +128,14 @@ const plans = [
     href: "/register",
     popular: false,
     features: [
-      "500 pesan/bulan",
-      "200 kontak",
-      "10 template pesan",
+      "500 pesan/bulan (hingga 50/hari)",
       "1 koneksi perangkat",
-      "Bot auto-balas",
-      "Broadcast massal",
+      "Bot auto-balas & aturan chatbot",
       "Pesan terjadwal",
-      "Akses REST API",
+      "Template pesan (10)",
+      "Manajemen kontak & grup",
+      "Dashboard analitik",
+      "Akses REST API & API Keys",
     ],
   },
   {
@@ -111,13 +147,14 @@ const plans = [
     href: "/register",
     popular: true,
     features: [
-      "5.000 pesan/bulan",
-      "Kontak tak terbatas",
-      "Template pesan tak terbatas",
+      "5.000 pesan/bulan (hingga 200/hari)",
+      "Broadcast massal",
       "2 koneksi perangkat",
-      "Bot auto-balas",
       "Webhook integration",
-      "Custom Watermark",
+      "Custom watermark",
+      "Kontak & template tak terbatas",
+      "Admin bypass (3 nomor)",
+      "Prioritas antrean",
       "Support prioritas",
       "Semua fitur Free +",
     ],
@@ -132,13 +169,13 @@ const plans = [
     popular: false,
     features: [
       "Pesan tak terbatas",
-      "Kontak tak terbatas",
-      "Template pesan tak terbatas",
-      "Multi-perangkat WhatsApp",
+      "10+ koneksi perangkat",
       "Dedicated chatbot engine",
+      "Proxy perangkat (isolasi IP)",
+      "Kustom simulasi manusia (ms-level)",
+      "Safety mode & monitoring",
       "SLA 99,99% uptime",
       "Account manager dedicated",
-      "Integrasi & onboarding kustom",
       "Prioritas 24/7",
       "Semua fitur Pro +",
     ],
@@ -233,7 +270,7 @@ export default function Home() {
               Platform all-in-one untuk mengelola komunikasi bisnis Anda lewat WhatsApp.
             </p>
           </div>
-          <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {features.map((feature) => (
               <div
                 key={feature.title}
