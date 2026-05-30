@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { PLANS, getPlanLimits } from "@/lib/plans";
 
 export type Tier = "free" | "pro" | "enterprise";
 
@@ -11,9 +12,9 @@ export interface TierLimits {
 }
 
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
-  free: { dailyLimit: 50, monthlyLimit: 1_000, concurrency: 1, adminSlots: 0, broadcast: false },
-  pro: { dailyLimit: 200, monthlyLimit: 5_000, concurrency: 2, adminSlots: 3, broadcast: true },
-  enterprise: { dailyLimit: Infinity, monthlyLimit: Infinity, concurrency: 10, adminSlots: Infinity, broadcast: true },
+  free: { dailyLimit: 50, monthlyLimit: PLANS.FREE.maxMessagesPerMonth, concurrency: PLANS.FREE.concurrency, adminSlots: PLANS.FREE.adminSlots, broadcast: true },
+  pro: { dailyLimit: 200, monthlyLimit: PLANS.PRO.maxMessagesPerMonth, concurrency: PLANS.PRO.concurrency, adminSlots: PLANS.PRO.adminSlots, broadcast: true },
+  enterprise: { dailyLimit: Infinity, monthlyLimit: Infinity, concurrency: PLANS.ENTERPRISE.concurrency, adminSlots: PLANS.ENTERPRISE.adminSlots, broadcast: true },
 };
 
 export function getTierLimits(tier: string): TierLimits {

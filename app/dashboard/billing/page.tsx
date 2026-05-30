@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 
 interface TransactionData {
   id: string;
@@ -23,10 +24,11 @@ interface ChargeResultData {
 }
 
 export default function BillingPage() {
+  const searchParams = useSearchParams();
   const [plan, setPlan] = useState<string>("FREE");
   const [planExpiresAt, setPlanExpiresAt] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<TransactionData[]>([]);
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(searchParams.get("upgrade") === "pro");
   const [paymentType, setPaymentType] = useState<"bank_transfer" | "qris">("bank_transfer");
   const [bank, setBank] = useState("bca");
   const [charging, setCharging] = useState(false);

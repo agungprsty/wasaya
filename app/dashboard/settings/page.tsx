@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { TIER_DAILY_LIMITS, TIER_MONTHLY_LIMITS } from "@/app/dashboard/limit-constants";
 import { useDashboard } from "../dashboard-context";
@@ -116,15 +117,12 @@ export default function SettingsPage() {
                   : "Mature (30+ days)"}
             </p>
           </div>
-          {isFree && (
-            <button
-              type="button"
-              onClick={() => setShowUpgradeModal(true)}
-              className="rounded-xl bg-[#25D366] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1DAF5A]"
-            >
-              Upgrade
-            </button>
-          )}
+          <Link
+            href="/dashboard/billing"
+            className="rounded-xl bg-[#25D366] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1DAF5A]"
+          >
+            {isFree ? "Upgrade" : "Manage Billing"}
+          </Link>
         </div>
 
         {/* Daily Usage */}

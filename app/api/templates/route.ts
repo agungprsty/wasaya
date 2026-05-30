@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/api-auth";
+import { checkTemplateLimit } from "@/lib/check-limit";
 
 export async function GET(request: NextRequest) {
   const { error, user } = await requireUser(request);
@@ -17,6 +18,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
+
+  const limitCheck = await checkTemplateLimit(user!.userId);
+  if (!limitCheck.ok) {
+    return NextResponse.json({ error: limitCheck.message }, { status: 429 });
+  }
 
   const { name, body } = await request.json();
   if (!name || !body) {

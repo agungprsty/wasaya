@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, FormEvent, useEffect } from "react";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const planParam = searchParams.get("plan");
+  const isProPlan = planParam === "pro";
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,7 +52,7 @@ export default function RegisterPage() {
         return;
       }
 
-      router.push("/dashboard");
+      router.push(isProPlan ? "/dashboard/billing?upgrade=pro" : "/dashboard");
     } catch {
       setError("Connection error. Please try again.");
     } finally {
@@ -118,6 +122,12 @@ export default function RegisterPage() {
           </div>
 
           <div className="mb-8">
+            {isProPlan && (
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-[#25D366]/10 px-4 py-1.5 text-xs font-semibold text-[#075E54]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#25D366]" />
+                You are signing up for the Pro plan
+              </div>
+            )}
             <h1 className="text-2xl font-semibold tracking-tight text-[#075E54]">
               Create your account
             </h1>

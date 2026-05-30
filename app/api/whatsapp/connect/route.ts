@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/api-auth";
+import { checkDeviceLimit } from "@/lib/check-limit";
 import { whatsappManager } from "@/lib/whatsapp";
 
 export async function POST(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
+
+  const limitCheck = await checkDeviceLimit(user!.userId);
+  if (!limitCheck.ok) {
+    return NextResponse.json({ error: limitCheck.message }, { status: 429 });
+  }
 
   const { searchParams } = new URL(request.url);
   const deviceId = searchParams.get("deviceId") || "main";
