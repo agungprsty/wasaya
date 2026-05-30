@@ -4,10 +4,10 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { TIER_DAILY_LIMITS, TIER_MONTHLY_LIMITS } from "@/app/dashboard/limit-constants";
 import { useDashboard } from "../dashboard-context";
 
-function getSafetyLevel(pct: number): { label: string; color: string; bg: string } {
-  if (pct < 50) return { label: "Aman", color: "text-green-700", bg: "bg-green-50 border-green-200" };
-  if (pct < 80) return { label: "Waspada", color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200" };
-  return { label: "Berisiko", color: "text-red-700", bg: "bg-red-50 border-red-200" };
+function getUsageLevel(pct: number): { label: string; color: string; bg: string } {
+  if (pct < 50) return { label: "Low", color: "text-green-700", bg: "bg-green-50 border-green-200" };
+  if (pct < 80) return { label: "Moderate", color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200" };
+  return { label: "High", color: "text-red-700", bg: "bg-red-50 border-red-200" };
 }
 
 export default function SettingsPage() {
@@ -39,7 +39,7 @@ export default function SettingsPage() {
   const monthlySent = ctxUsage.monthly;
   const dailyPct = dailyLimit === Infinity ? 0 : Math.min(100, Math.round((dailySent / dailyLimit) * 100));
   const monthlyPct = monthlyLimit === Infinity ? 0 : Math.min(100, Math.round((monthlySent / monthlyLimit) * 100));
-  const safetyLevel = getSafetyLevel(Math.max(dailyPct, monthlyPct));
+  const usageLevel = getUsageLevel(Math.max(dailyPct, monthlyPct));
 
   useEffect(() => {
     fetch("/api/analytics?metric=outbound-inbound-ratio")
@@ -88,11 +88,11 @@ export default function SettingsPage() {
   }
 
   function formatNumber(n: number) {
-    return n === Infinity ? "\u221E" : n.toLocaleString("id-ID");
+    return n === Infinity ? "\u221E" : n.toLocaleString("en-US");
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-10">
+    <div className="mx-auto w-full max-w-5xl px-6 py-10">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-[#075E54]">Settings</h1>
         <p className="mt-1 text-sm text-zinc-500">
@@ -108,12 +108,12 @@ export default function SettingsPage() {
               {tierBadge.label}
             </span>
             <p className="mt-2 text-xs text-zinc-500">
-              Akun:{" "}
+              Account Age:{" "}
               {sub?.accountAge === "newborn"
-                ? "Baru (< 7 hari)"
+                ? "New (< 7 days)"
                 : sub?.accountAge === "growing"
-                  ? "Bertumbuh (7-30 hari)"
-                  : "Mapan (30+ hari)"}
+                  ? "Growing (7–30 days)"
+                  : "Mature (30+ days)"}
             </p>
           </div>
           {isFree && (
@@ -130,39 +130,44 @@ export default function SettingsPage() {
         {/* Daily Usage */}
         <div className="mt-5">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-zinc-700">Harian</span>
+            <span className="font-medium text-zinc-700">Daily</span>
             <span className="text-zinc-500">
-              {dailySent.toLocaleString("id-ID")} / {formatNumber(dailyLimit)}
+              {dailySent.toLocaleString("en-US")} / {formatNumber(dailyLimit)}
             </span>
           </div>
           <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-100">
-            <div className="h-full rounded-full bg-[#25D366] transition-all" style={{ width: `${dailyPct}%` }} />
+            <div
+              className={`h-full rounded-full transition-all ${
+                dailyPct >= 80 ? "bg-red-500" : dailyPct >= 50 ? "bg-yellow-500" : "bg-[#25D366]"
+              }`}
+              style={{ width: `${dailyPct}%` }}
+            />
           </div>
         </div>
 
         {/* Monthly Usage */}
         <div className="mt-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-zinc-700">Bulanan</span>
+            <span className="font-medium text-zinc-700">Monthly</span>
             <span className="text-zinc-500">
-              {monthlySent.toLocaleString("id-ID")} / {formatNumber(monthlyLimit)}
+              {monthlySent.toLocaleString("en-US")} / {formatNumber(monthlyLimit)}
             </span>
           </div>
           <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-100">
             <div
               className={`h-full rounded-full transition-all ${
-                monthlyPct > 80 ? "bg-red-500" : monthlyPct > 50 ? "bg-yellow-500" : "bg-[#25D366]"
+                monthlyPct >= 80 ? "bg-red-500" : monthlyPct >= 50 ? "bg-yellow-500" : "bg-[#25D366]"
               }`}
               style={{ width: `${monthlyPct}%` }}
             />
           </div>
         </div>
 
-        {/* Safety Level */}
-        <div className={`mt-4 rounded-lg border px-4 py-3 ${safetyLevel.bg}`}>
+        {/* Usage Level */}
+        <div className={`mt-4 rounded-lg border px-4 py-3 ${usageLevel.bg}`}>
           <div className="flex items-center gap-2">
             <svg
-              className={`h-4 w-4 ${safetyLevel.color}`}
+              className={`h-4 w-4 ${usageLevel.color}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -171,19 +176,19 @@ export default function SettingsPage() {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M12 9v2m0 4h.01M3.75 12a8.25 8.25 0 1 1 16.5 0 8.25 8.25 0 0 1-16.5 0Z"
+                d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"
               />
             </svg>
-            <span className={`text-sm font-medium ${safetyLevel.color}`}>
-              Status Keamanan: {safetyLevel.label}
+            <span className={`text-sm font-medium ${usageLevel.color}`}>
+              Usage: {usageLevel.label}
             </span>
           </div>
           <p className="mt-1 text-xs text-zinc-500">
             {dailyPct >= 80 || monthlyPct >= 80
-              ? "Penggunaan mendekati batas. Kurangi frekuensi untuk menghindari flagging."
+              ? "Usage is near the limit. Reduce frequency to avoid throttling."
               : dailyPct >= 50 || monthlyPct >= 50
-                ? "Penggunaan cukup tinggi. Pantau batas harian dan bulanan."
-                : "Penggunaan masih aman. Lanjutkan dengan pengaturan saat ini."}
+                ? "Usage is moderately high. Keep an eye on daily and monthly limits."
+                : "Usage is well within limits. You're good to go."}
           </p>
         </div>
 
@@ -198,11 +203,11 @@ export default function SettingsPage() {
                   d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
                 />
               </svg>
-              <span className="text-sm font-medium text-red-700">Mode Darurat — Akun DIKARANTINA</span>
+              <span className="text-sm font-medium text-red-700">Emergency Mode — Account Quarantined</span>
             </div>
             <p className="mt-1 text-xs text-red-600">
-              Terdeteksi {ctxSafetyViolations} pelanggaran keamanan. Pengiriman pesan dihentikan sementara.
-              {tier !== "enterprise" && " Status akan dirilis otomatis dalam 12-24 jam."}
+              {ctxSafetyViolations} security violation(s) detected. Message delivery has been suspended.
+              {tier !== "enterprise" && " Status will be automatically lifted within 12–24 hours."}
             </p>
           </div>
         )}
@@ -211,16 +216,16 @@ export default function SettingsPage() {
         {ratio && (
           <div className="mt-3 flex items-center gap-4 rounded-lg border border-zinc-100 bg-zinc-50 px-4 py-2.5">
             <div className="text-sm">
-              <span className="font-medium text-zinc-700">Rasio Kirim/Terima: </span>
+              <span className="font-medium text-zinc-700">Send/Receive Ratio: </span>
               <span className="text-zinc-500">{ratio.ratio}</span>
             </div>
             <div className="text-sm">
-              <span className="font-medium text-zinc-700">Dikirim: </span>
-              <span className="text-zinc-500">{ratio.outbound.toLocaleString("id-ID")}</span>
+              <span className="font-medium text-zinc-700">Sent: </span>
+              <span className="text-zinc-500">{ratio.outbound.toLocaleString("en-US")}</span>
             </div>
             <div className="text-sm">
-              <span className="font-medium text-zinc-700">Diterima: </span>
-              <span className="text-zinc-500">{ratio.inbound.toLocaleString("id-ID")}</span>
+              <span className="font-medium text-zinc-700">Received: </span>
+              <span className="text-zinc-500">{ratio.inbound.toLocaleString("en-US")}</span>
             </div>
           </div>
         )}
@@ -233,7 +238,7 @@ export default function SettingsPage() {
           <p className="mt-1 text-xs text-zinc-500">
             Automatically add a footer to every message you send.{" "}
             {isFree
-              ? 'Free tier always appends "Sent via temanwa".'
+              ? 'Free tier always appends "-temanwa".'
               : 'Supports {"{{business_name}}"}, {"{{user_name}}"}, {"{{phone}}"}.'}
           </p>
 
@@ -243,7 +248,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-zinc-500">
                   Custom watermark messages are available on <strong>Pro</strong> and{" "}
                   <strong>Enterprise</strong> tiers. Your messages will always include:{" "}
-                  <span className="italic text-zinc-700">Sent via temanwa</span>
+                  <span className="italic text-zinc-700">-temanwa</span>
                 </p>
               </div>
             ) : (
@@ -274,7 +279,7 @@ export default function SettingsPage() {
                     value={watermarkText}
                     onChange={(e) => setWatermarkText(e.target.value)}
                     className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
-                    placeholder="Dikirim via TEMANWA"
+                    placeholder="Sent via TEMANWA"
                   />
                 </div>
                 {watermarkText && (
@@ -325,14 +330,14 @@ export default function SettingsPage() {
                   d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"
                 />
               </svg>
-              <h3 className="mt-4 text-lg font-semibold text-zinc-900">Upgrade ke Pro</h3>
-              <p className="mt-2 text-sm text-zinc-500">Buka fitur eksklusif dengan berlangganan paket Pro:</p>
+              <h3 className="mt-4 text-lg font-semibold text-zinc-900">Upgrade to Pro</h3>
+              <p className="mt-2 text-sm text-zinc-500">Unlock exclusive features with a Pro subscription:</p>
               <ul className="mt-4 space-y-2 text-left text-sm text-zinc-600">
                 {[
-                  "Broadcast massal hingga 200 pesan/hari",
-                  "Hingga 5.000 pesan/bulan",
-                  "Concurrency 2 (kirim lebih cepat)",
-                  "Auto-reply dan chatbot rules prioritas",
+                  "Mass broadcast — up to 200 messages/day",
+                  "Up to 5,000 messages/month",
+                  "Concurrency 2 (faster delivery)",
+                  "Priority auto-reply and chatbot rules",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2">
                     <svg
@@ -355,13 +360,13 @@ export default function SettingsPage() {
                 onClick={() => setShowUpgradeModal(false)}
                 className="flex-1 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
               >
-                Nanti Saja
+                Maybe Later
               </button>
               <a
                 href="/pricing"
                 className="flex flex-1 items-center justify-center rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1DAF5A]"
               >
-                Lihat Harga
+                View Pricing
               </a>
             </div>
           </div>

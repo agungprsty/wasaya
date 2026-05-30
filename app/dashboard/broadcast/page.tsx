@@ -56,8 +56,8 @@ export default function BroadcastPage() {
   const broadcastEnabled = settings?.broadcastEnabled ?? false;
   const blocked = isFree || !broadcastEnabled;
   const blockedReason = isFree
-    ? "Fitur broadcast massal hanya tersedia di paket Pro."
-    : "Fitur broadcast dinonaktifkan. Aktifkan di menu Advanced.";
+    ? "Mass broadcast is available on Pro tier and above."
+    : "Broadcast is disabled. Enable it in the Advanced settings.";
 
   useEffect(() => {
     Promise.all([
@@ -280,14 +280,14 @@ export default function BroadcastPage() {
           <svg className="mx-auto h-10 w-10 text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
           </svg>
-          <h2 className="mt-3 text-lg font-semibold text-zinc-800">Broadcast Tidak Tersedia</h2>
+          <h2 className="mt-3 text-lg font-semibold text-zinc-800">Broadcast Unavailable</h2>
           <p className="mt-1 text-sm text-zinc-500">{blockedReason}</p>
           {isFree && (
             <a
               href="/pricing"
               className="mt-4 inline-flex items-center rounded-xl bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1DAF5A]"
             >
-              Lihat Paket Pro
+              View Pro Plan
             </a>
           )}
           {!isFree && !broadcastEnabled && (
@@ -295,7 +295,7 @@ export default function BroadcastPage() {
               href="/dashboard/advanced"
               className="mt-4 inline-flex items-center rounded-xl border border-[#25D366] px-5 py-2.5 text-sm font-semibold text-[#25D366] transition-colors hover:bg-[#25D366]/5"
             >
-              Buka Advanced Settings
+              Open Advanced Settings
             </a>
           )}
         </div>

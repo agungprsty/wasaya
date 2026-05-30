@@ -67,7 +67,7 @@ export default function AdvancedPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-10">
+    <div className="mx-auto w-full max-w-5xl px-6 py-10">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-[#075E54]">Advanced</h1>
         <p className="mt-1 text-sm text-zinc-500">
@@ -84,7 +84,7 @@ export default function AdvancedPage() {
                 Safety Mode
               </label>
               <p className="mt-0.5 text-xs text-zinc-400">
-                Ketat mode reduces sending speed and adds random delays to avoid flagging.
+                <strong>Strict</strong> mode reduces sending speed and introduces random delays to reduce the risk of flagging.
               </p>
               <select
                 id="safetyMode"
@@ -93,7 +93,7 @@ export default function AdvancedPage() {
                 className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-4 py-2.5 text-sm text-zinc-900 focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
               >
                 <option value="normal">Normal</option>
-                <option value="ketat">Ketat (Lambat & Aman)</option>
+                <option value="ketat">Strict (Slow & Safe)</option>
               </select>
             </div>
 
@@ -104,8 +104,8 @@ export default function AdvancedPage() {
                   Admin Numbers
                 </label>
                 <p className="mt-0.5 text-xs text-zinc-400">
-                  Nomor-nomor ini dilewati dari pembatasan percakapan per menit. Pisahkan dengan koma.
-                  {tier === "pro" && " Maks 3 nomor."}
+                  These numbers are exempt from per-minute conversation throttling. Separate by comma.
+                  {tier === "pro" && " Max 3 numbers."}
                 </p>
                 <input
                   id="adminNumbers"
@@ -127,7 +127,7 @@ export default function AdvancedPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-zinc-700">Broadcast Mode</span>
                 {isFree && (
-                  <span className="text-xs text-zinc-400" title="Fitur ini hanya tersedia di paket Pro">
+                  <span className="text-xs text-zinc-400" title="Available on Pro tier and above">
                     <svg
                       className="inline-block h-4 w-4"
                       fill="none"
@@ -145,9 +145,9 @@ export default function AdvancedPage() {
                 )}
               </div>
               <p className="mt-0.5 text-xs text-zinc-400">
-                {isFree
-                  ? "Broadcast massal hanya tersedia untuk pengguna Pro. Upgrade untuk mengaktifkan."
-                  : "Kirim pesan ke banyak kontak sekaligus."}
+                  {isFree
+                    ? "Mass broadcast is available on Pro tier and above. Upgrade to enable."
+                    : "Send messages to multiple contacts simultaneously."}
               </p>
               <div className="mt-2 flex items-center gap-3">
                 <button
@@ -180,7 +180,7 @@ export default function AdvancedPage() {
                           d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
                         />
                       </svg>
-                      Terkunci
+                      Locked
                     </span>
                   ) : broadcastEnabled ? "Active" : "Inactive"}
                 </span>
@@ -205,7 +205,7 @@ export default function AdvancedPage() {
                 className="mt-1.5 block w-32 rounded-lg border border-zinc-200 bg-zinc-50/50 px-4 py-2.5 text-sm text-zinc-900 focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
               />
               <p className="mt-1 text-xs text-zinc-400">
-                Maks: {isFree ? "1" : tier === "pro" ? "2" : "10"}
+                Max: {isFree ? "1" : tier === "pro" ? "2" : "10"}
               </p>
             </div>
 
@@ -216,7 +216,7 @@ export default function AdvancedPage() {
                   Proxy URL
                 </label>
                 <p className="mt-0.5 text-xs text-zinc-400">
-                  SOCKS5 proxy untuk mengisolasi IP perangkat. Contoh:{" "}
+                  SOCKS5 proxy to isolate the device IP address. Example:{" "}
                   <code className="text-xs">socks5://user:pass@host:1080</code>
                 </p>
                 <input
@@ -235,12 +235,12 @@ export default function AdvancedPage() {
               <div className="border-t border-[#DCF8C6] pt-5">
                 <h3 className="text-sm font-semibold text-[#075E54]">Human Mimicry</h3>
                 <p className="mt-0.5 text-xs text-zinc-400">
-                  Kontrol kecepatan dan delay pengiriman agar menyerupai manusia.
+                  Control delivery speed and delays to mimic human behavior.
                 </p>
 
                 <div className="mt-4">
                   <label htmlFor="msPerChar" className="block text-sm font-medium text-zinc-700">
-                    Kecepatan Typing: {msPerChar} ms / karakter
+                    Typing Speed: {msPerChar} ms/char
                   </label>
                   <input
                     id="msPerChar"
@@ -253,14 +253,14 @@ export default function AdvancedPage() {
                     className="mt-2 w-full accent-[#25D366]"
                   />
                   <div className="mt-1 flex justify-between text-xs text-zinc-400">
-                    <span>30 ms (cepat)</span>
-                    <span>500 ms (lambat)</span>
+                    <span>30 ms (fast)</span>
+                    <span>500 ms (slow)</span>
                   </div>
                 </div>
 
                 <div className="mt-4">
                   <label htmlFor="readDelayMs" className="block text-sm font-medium text-zinc-700">
-                    Delay Membaca: {readDelayMs} ms
+                    Reading Delay: {readDelayMs} ms
                   </label>
                   <input
                     id="readDelayMs"
@@ -293,12 +293,12 @@ export default function AdvancedPage() {
                     />
                   </button>
                   <span className="text-sm text-zinc-700">
-                    {typingEnabled ? "Simulasi typing aktif" : "Simulasi typing nonaktif"}
+                    {typingEnabled ? "Typing simulation active" : "Typing simulation inactive"}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-zinc-400">
-                  Jika aktif, pesan akan dikirim dengan delay mengetik (msPerChar × panjang pesan) ditambah
-                  delay membaca (readDelayMs) untuk setiap sesi.
+                  When enabled, messages are sent with a typing delay (msPerChar × message length) plus
+                  a reading delay (readDelayMs) for each incoming session.
                 </p>
               </div>
             )}

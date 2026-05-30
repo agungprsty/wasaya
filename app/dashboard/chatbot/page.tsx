@@ -96,7 +96,7 @@ export default function ChatbotPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-6 py-10">
+    <div className="mx-auto w-full max-w-7xl px-6 py-10">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-[#075E54]">Chatbot Rules</h1>
@@ -155,11 +155,23 @@ export default function ChatbotPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-700">Priority</label>
+              <label className="block text-sm font-medium text-zinc-700">
+                Priority <span className="text-zinc-400">(1–10)</span>
+              </label>
+              <p className="mt-0.5 text-xs text-zinc-400">
+                Lower number = higher priority. Rules with higher priority are evaluated first.
+              </p>
               <input
                 type="number"
+                min={1}
+                max={10}
                 value={priority}
-                onChange={(e) => setPriority(Number(e.target.value))}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (v < 1) setPriority(1);
+                  else if (v > 10) setPriority(10);
+                  else setPriority(v);
+                }}
                 className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 text-sm focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
               />
             </div>

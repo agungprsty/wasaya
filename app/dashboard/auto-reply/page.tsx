@@ -39,7 +39,7 @@ export default function AutoReplyPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-10">
+    <div className="mx-auto w-full max-w-7xl px-6 py-10">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-[#075E54]">Auto Reply</h1>
         <p className="mt-1 text-sm text-zinc-500">
@@ -76,12 +76,12 @@ export default function AutoReplyPage() {
                 value={autoReplyText}
                 onChange={(e) => setAutoReplyText(e.target.value)}
                 className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15 resize-y"
-                placeholder="Halo, terima kasih sudah menghubungi. Kami akan segera merespon."
+                placeholder="Hello, thank you for reaching out. We will get back to you shortly."
               />
             </div>
             <p className="text-xs text-zinc-400">
-              Pesan ini akan dikirim 1x/hari sebagai balasan pertama ke setiap kontak. Auto Reply berjalan
-              sebelum chatbot keyword rules.
+              This message is sent once per day as the first reply to each contact. Auto-reply
+              runs before chatbot keyword-based rules.
             </p>
           </div>
         </div>

@@ -115,10 +115,10 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
               }`}
             />
             <span className="text-xs font-medium text-zinc-600">
-              {dailyPct >= 80 ? "Berisiko" : dailyPct >= 50 ? "Waspada" : "Aman"}
+              {dailyPct >= 80 ? "High" : dailyPct >= 50 ? "Moderate" : "Low"}
             </span>
             <span className="ml-auto text-[10px] text-zinc-400">
-              {dailyPct}% harian
+              {dailyPct}% Daily
             </span>
           </div>
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">

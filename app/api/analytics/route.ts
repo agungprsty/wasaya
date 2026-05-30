@@ -195,19 +195,20 @@ interface RatioEntry {
 }
 
 async function getOutboundInboundRatio(userId: string): Promise<RatioEntry> {
-  const sessions = await prisma.whatsAppSession.findMany({
-    where: { userId },
-    select: {
-      outboundCount: true,
-      inboundCount: true,
-    },
-  });
+  const [outbound, inbound] = await Promise.all([
+    prisma.whatsAppMessage.count({
+      where: { userId, status: { in: ["sent", "delivered", "read"] } },
+    }),
+    prisma.whatsAppMessage.count({
+      where: { userId, status: "received" },
+    }),
+  ]);
 
-  const outbound = sessions.reduce((sum, s) => sum + (s.outboundCount ?? 0), 0);
-  const inbound = sessions.reduce((sum, s) => sum + (s.inboundCount ?? 0), 0);
-  const ratio = inbound > 0 ? `${outbound}:${inbound}` : `${outbound}:0`;
+  const ratioStr = inbound > 0
+    ? `${(outbound / inbound).toFixed(1)}:1`
+    : `${outbound}:0`;
 
-  return { outbound, inbound, ratio };
+  return { outbound, inbound, ratio: ratioStr };
 }
 
 interface FailedRateEntry {

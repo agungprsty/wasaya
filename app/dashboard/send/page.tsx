@@ -296,7 +296,7 @@ export default function SendPage() {
   const allFilled = currentVariables.length > 0 && currentVariables.every((v) => variableValues[v]?.trim());
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-10">
+    <div className="mx-auto w-full max-w-7xl px-6 py-10">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-[#075E54]">Send Message</h1>
         <p className="mt-1 text-sm text-zinc-500">Compose and send a WhatsApp message with optional media.</p>

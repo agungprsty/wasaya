@@ -17,13 +17,25 @@ interface ScheduledMsg {
   maxRepeats: number | null;
 }
 
-const statusStyles: Record<string, string> = {
-  pending: "border-yellow-200 bg-yellow-50 text-yellow-700",
-  processing: "border-blue-200 bg-blue-50 text-blue-700",
-  sent: "border-green-200 bg-green-50 text-green-700",
-  failed: "border-red-200 bg-red-50 text-red-700",
-  cancelled: "border-zinc-200 bg-zinc-50 text-zinc-500",
+const statusConfig: Record<string, { label: string; dot: string; bg: string }> = {
+  pending: { label: "Pending", dot: "bg-yellow-400", bg: "bg-yellow-50" },
+  processing: { label: "Processing", dot: "bg-blue-500", bg: "bg-blue-50" },
+  sent: { label: "Sent", dot: "bg-[#25D366]", bg: "bg-green-50" },
+  failed: { label: "Failed", dot: "bg-red-500", bg: "bg-red-50" },
+  cancelled: { label: "Cancelled", dot: "bg-zinc-400", bg: "bg-zinc-50" },
 };
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
+}
+
+function cleanJid(jid: string): string {
+  return jid.split("@")[0];
+}
 
 export default function ScheduledPage() {
   const [messages, setMessages] = useState<ScheduledMsg[]>([]);
@@ -77,180 +89,213 @@ export default function ScheduledPage() {
     fetchMessages();
   }
 
-  function getStatusBadge(status: string) {
-    const style = statusStyles[status] || "border-zinc-200 bg-zinc-50 text-zinc-500";
-    return `inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`;
-  }
-
-  const countByStatus = {
-    pending: messages.filter((m) => m.status === "pending").length,
-    sent: messages.filter((m) => m.status === "sent").length,
-    failed: messages.filter((m) => m.status === "failed").length,
-    cancelled: messages.filter((m) => m.status === "cancelled").length,
-  };
+  const allStatuses = ["all", "pending", "processing", "sent", "failed", "cancelled"];
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-10">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-[#075E54]">Scheduled Messages</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h1 className="text-xl font-semibold text-[#075E54] sm:text-2xl">Scheduled Messages</h1>
+          <p className="mt-0.5 text-xs text-zinc-500 sm:text-sm">
             {total > 0
-              ? `${total} message${total !== 1 ? "s" : ""} — ${countByStatus.pending} pending, ${countByStatus.sent} sent, ${countByStatus.failed} failed, ${countByStatus.cancelled} cancelled`
+              ? `${total} message${total !== 1 ? "s" : ""} scheduled for delivery.`
               : "Manage your scheduled messages."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {["all", "pending", "sent", "failed", "cancelled"].map((s) => (
-            <button
-              key={s}
-              onClick={() => { setFilter(s); setPage(1); }}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                filter === s
-                  ? "bg-[#25D366] text-white"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-              }`}
-            >
-              {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          {allStatuses.map((s) => {
+            const active = filter === s;
+            return (
+              <button
+                key={s}
+                onClick={() => { setFilter(s); setPage(1); }}
+                className={`h-9 rounded-lg px-3 text-xs font-semibold transition-colors sm:h-10 sm:rounded-xl sm:text-sm ${
+                  active
+                    ? "bg-[#25D366] text-white"
+                    : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+                }`}
+              >
+                {s === "all" ? "All" : statusConfig[s]?.label || s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[#DCF8C6] bg-white">
-        {loading ? (
-          <div className="p-12 text-center text-sm text-zinc-400">Loading...</div>
-        ) : messages.length === 0 ? (
-          <div className="p-12 text-center">
-            <svg className="mx-auto h-10 w-10 text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="mt-3 text-sm text-zinc-400">
-              {filter !== "all" ? `No ${filter} messages.` : "No scheduled messages yet."}
-            </p>
-            <p className="mt-1 text-xs text-zinc-300">
-              Go to <a href="/dashboard/send" className="text-[#25D366] hover:underline">Send Message</a> or{" "}
-              <a href="/dashboard/broadcast" className="text-[#25D366] hover:underline">Broadcast</a> and use the Schedule toggle.
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-[#DCF8C6]">
+      {loading ? (
+        <div className="flex items-center justify-center rounded-xl border border-[#DCF8C6] bg-white py-20 text-sm text-zinc-400">
+          Loading...
+        </div>
+      ) : messages.length === 0 ? (
+        <div className="flex items-center justify-center rounded-xl border border-[#DCF8C6] bg-white py-20 text-sm text-zinc-400">
+          No scheduled messages yet.
+        </div>
+      ) : (
+        <>
+          {/* Mobile: card list */}
+          <div className="space-y-3 sm:hidden">
             {messages.map((msg) => {
+              const sc = statusConfig[msg.status] || { label: msg.status, dot: "bg-zinc-300", bg: "bg-zinc-50" };
               const rcpts = msg.recipients as { to: string; name?: string }[];
               return (
-                <div key={msg.id} className="px-6 py-4 hover:bg-zinc-50/50 transition-colors">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={getStatusBadge(msg.status)}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${
-                            msg.status === "pending" ? "bg-yellow-400" :
-                            msg.status === "processing" ? "bg-blue-400" :
-                            msg.status === "sent" ? "bg-green-400" :
-                            msg.status === "failed" ? "bg-red-400" : "bg-zinc-400"
-                          }`} />
-                          {msg.status}
-                        </span>
-                        {msg.isRecurring && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
-                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
-                            </svg>
-                            Recurring
-                          </span>
-                        )}
-                        <span className="text-xs text-zinc-400">
-                          <svg className="-mt-0.5 mr-0.5 inline h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <div key={msg.id} className="rounded-xl border border-[#DCF8C6] bg-white p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-block h-2 w-2 rounded-full ${sc.dot}`} />
+                      <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${sc.bg} text-zinc-700`}>
+                        {sc.label}
+                      </span>
+                      {msg.isRecurring && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
+                          <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
                           </svg>
-                          {new Date(msg.scheduledAt).toLocaleDateString("id-ID", {
-                            weekday: "short", year: "numeric", month: "short", day: "numeric",
-                            hour: "2-digit", minute: "2-digit",
-                          })}
+                          Recurring
                         </span>
-                        {msg.status === "pending" && new Date(msg.scheduledAt) <= new Date() && (
-                          <span className="text-[10px] font-medium text-red-500">Overdue</span>
-                        )}
-                      </div>
-                      <p className="mt-1.5 text-sm text-zinc-700 line-clamp-2 whitespace-pre-wrap">{msg.body}</p>
-                      <div className="mt-1.5">
-                        <span className="text-xs text-zinc-400">
-                          {rcpts.length} recipient{rcpts.length !== 1 ? "s" : ""}
-                        </span>
-                        <div className="mt-1 flex flex-wrap gap-1.5">
-                          {rcpts.slice(0, 5).map((r, i) => (
-                            <span key={i} className="inline-flex items-center gap-1 rounded-md bg-[#DCF8C6]/40 px-2 py-0.5 text-[10px] text-[#075E54]">
-                              <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#DCF8C6] text-[8px] font-semibold">
-                                {(r.name || r.to).charAt(0).toUpperCase()}
-                              </span>
-                              {r.name || r.to}
-                            </span>
-                          ))}
-                          {rcpts.length > 5 && (
-                            <span className="text-[10px] text-zinc-400">+{rcpts.length - 5} more</span>
-                          )}
-                        </div>
-                        {msg.isRecurring && (
-                          <div className="mt-1.5 flex flex-wrap gap-2">
-                            <span className="text-[10px] text-zinc-400">
-                              Sent {msg.repeatCount}x
-                              {msg.maxRepeats != null && ` / max ${msg.maxRepeats}x`}
-                            </span>
-                            {msg.nextRunAt && msg.status === "pending" && (
-                              <span className="text-[10px] text-zinc-400">
-                                Next: {new Date(msg.nextRunAt).toLocaleDateString("id-ID", {
-                                  weekday: "short", month: "short", day: "numeric",
-                                  hour: "2-digit", minute: "2-digit",
-                                })}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-start gap-2 pt-1">
-                      {msg.isRecurring && msg.status === "pending" && (
-                        <button
-                          onClick={() => stopRecurring(msg.id)}
-                          className="rounded-lg px-3 py-1.5 text-xs font-medium text-orange-500 hover:bg-orange-50 transition-colors"
-                        >
-                          Stop Recurring
-                        </button>
-                      )}
-                      {msg.status === "pending" && !msg.isRecurring && (
-                        <button
-                          onClick={() => cancel(msg.id)}
-                          className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
-                        >
-                          Cancel
-                        </button>
                       )}
                     </div>
+                    <span className="text-xs text-zinc-400">{formatDate(msg.scheduledAt)}</span>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-xs text-zinc-500 whitespace-pre-wrap">{msg.body}</p>
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs text-zinc-400">
+                    <span>{rcpts.length} recipient{rcpts.length !== 1 ? "s" : ""}</span>
+                    {msg.nextRunAt && msg.status === "pending" && (
+                      <span>• Next: {new Date(msg.nextRunAt).toLocaleDateString("id-ID", {
+                        weekday: "short", month: "short", day: "numeric",
+                        hour: "2-digit", minute: "2-digit",
+                      })}</span>
+                    )}
+                  </p>
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    {msg.isRecurring && msg.status === "pending" && (
+                      <button
+                        onClick={() => stopRecurring(msg.id)}
+                        className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-orange-500 transition-colors hover:bg-orange-50"
+                      >
+                        Stop Recurring
+                      </button>
+                    )}
+                    {msg.status === "pending" && !msg.isRecurring && (
+                      <button
+                        onClick={() => cancel(msg.id)}
+                        className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-50"
+                      >
+                        Cancel
+                      </button>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
-        )}
-      </div>
 
-      {/* Pagination */}
+          {/* Desktop: proper table */}
+          <div className="hidden overflow-hidden rounded-xl border border-[#DCF8C6] bg-white sm:block">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#DCF8C6] bg-zinc-50/80">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    Status
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    Scheduled At
+                  </th>
+                  <th className="hidden max-w-[280px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500 lg:table-cell">
+                    Message
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    Recipients
+                  </th>
+                  <th className="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500 xl:table-cell">
+                    Recurrence
+                  </th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#DCF8C6]">
+                {messages.map((msg) => {
+                  const sc = statusConfig[msg.status] || { label: msg.status, dot: "bg-zinc-300", bg: "bg-zinc-50" };
+                  const rcpts = msg.recipients as { to: string; name?: string }[];
+                  return (
+                    <tr key={msg.id} className="transition-colors hover:bg-zinc-50/50">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-block h-2 w-2 rounded-full ${sc.dot}`} />
+                          <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${sc.bg} text-zinc-700`}>
+                            {sc.label}
+                          </span>
+                          {msg.isRecurring && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
+                              <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
+                              </svg>
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-zinc-400">
+                        {formatDate(msg.scheduledAt)}
+                      </td>
+                      <td className="hidden max-w-[280px] truncate px-5 py-4 text-sm text-zinc-500 lg:table-cell">
+                        {msg.body}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-zinc-500">
+                        <span>{rcpts.length} recipient{rcpts.length !== 1 ? "s" : ""}</span>
+                      </td>
+                      <td className="hidden px-5 py-4 text-sm text-zinc-400 xl:table-cell">
+                        {msg.isRecurring ? (
+                          <span>
+                            {msg.recurrence} • {msg.repeatCount}{msg.maxRepeats != null && ` / ${msg.maxRepeats}`}x
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        {msg.isRecurring && msg.status === "pending" && (
+                          <button
+                            onClick={() => stopRecurring(msg.id)}
+                            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-orange-500 transition-colors hover:bg-orange-50"
+                          >
+                            Stop Recurring
+                          </button>
+                        )}
+                        {msg.status === "pending" && !msg.isRecurring && (
+                          <button
+                            onClick={() => cancel(msg.id)}
+                            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-50"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
       {totalPages > 1 && (
         <div className="mt-6 flex items-center justify-center gap-2">
           <button
             disabled={page <= 1}
             onClick={() => setPage((p) => p - 1)}
-            className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-40"
+            className="rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-40 sm:px-4 sm:text-sm"
           >
             Previous
           </button>
-          <span className="text-sm text-zinc-500">
-            Page {page} of {totalPages}
+          <span className="text-xs text-zinc-500 sm:text-sm">
+            {page} / {totalPages}
           </span>
           <button
             disabled={page >= totalPages}
             onClick={() => setPage((p) => p + 1)}
-            className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-40"
+            className="rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-40 sm:px-4 sm:text-sm"
           >
             Next
           </button>

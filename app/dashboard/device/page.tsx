@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useDashboard } from "../dashboard-context";
+
+const TIER_DEVICE_LIMITS: Record<string, number> = {
+  free: 1,
+  pro: 4,
+  enterprise: 4,
+};
 
 interface WaDevice {
   id: string;
@@ -12,6 +19,10 @@ interface WaDevice {
 }
 
 export default function DevicePage() {
+  const { subscription } = useDashboard();
+  const tier = subscription?.tier ?? "free";
+  const maxDevices = TIER_DEVICE_LIMITS[tier] ?? 4;
+
   const [devices, setDevices] = useState<WaDevice[]>([]);
   const [loading, setLoading] = useState(true);
   const [addForm, setAddForm] = useState(false);
@@ -20,7 +31,7 @@ export default function DevicePage() {
   const [connectingStates, setConnectingStates] = useState<Record<string, boolean>>({});
   const [qrStates, setQrStates] = useState<Record<string, string | null>>({});
   const [countdowns, setCountdowns] = useState<Record<string, number>>({});
-  const [editingName, setEditingName] = useState<Record<string, string>>({});
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const lastErrorShown = useRef<string | null>(null);
@@ -217,33 +228,6 @@ export default function DevicePage() {
     });
   }
 
-  function handleRenameBlur(deviceId: string) {
-    const newNameVal = editingName[deviceId]?.trim();
-    if (newNameVal) {
-      setDevices((prev) =>
-        prev.map((d) => (d.deviceId === deviceId ? { ...d, name: newNameVal } : d)),
-      );
-    }
-    setEditingName((prev) => {
-      const next = { ...prev };
-      delete next[deviceId];
-      return next;
-    });
-  }
-
-  function handleRenameKeyDown(deviceId: string, e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      (e.target as HTMLInputElement).blur();
-    }
-    if (e.key === "Escape") {
-      setEditingName((prev) => {
-        const next = { ...prev };
-        delete next[deviceId];
-        return next;
-      });
-    }
-  }
-
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
@@ -259,20 +243,24 @@ export default function DevicePage() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-[#075E54]">WhatsApp Devices</h1>
-          <p className="mt-1 text-sm text-zinc-500">Manage your WhatsApp device connections.</p>
+          <p className="mt-1 text-sm text-zinc-500">
+            Manage your WhatsApp device connections. ({devices.length}/{maxDevices})
+          </p>
         </div>
-        {devices.length >= 4 ? (
-          <p className="text-xs text-zinc-400">Maximum 4 devices reached. Delete a device to add a new one.</p>
+        {devices.length >= maxDevices ? (
+          <p className="text-xs text-zinc-400">
+            Maximum {maxDevices} devices reached. Delete a device to add a new one.
+          </p>
         ) : (
           <button
-          onClick={() => setAddForm(true)}
-          className="flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1DAF5A]"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Add Device
-        </button>
+            onClick={() => setAddForm(true)}
+            className="flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1DAF5A]"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Add Device
+          </button>
         )}
       </div>
 
@@ -291,59 +279,29 @@ export default function DevicePage() {
           <h2 className="mt-4 text-lg font-semibold text-[#075E54]">No Devices</h2>
           <p className="mt-1 text-sm text-zinc-500">Add your first WhatsApp device to get started.</p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+       ) : (
+        <div className={`grid gap-6 ${
+          (maxDevices === 1 && devices.length === 1) || (maxDevices >= 4 && devices.length === 1)
+            ? "grid-cols-1"
+            : "grid-cols-1 md:grid-cols-2"
+        }`}>
           {devices.map((device) => {
             const key = device.deviceId;
             const isConnecting = connectingStates[key];
             const qr = qrStates[key];
             const cd = countdowns[key] ?? 0;
-            const isEditing = editingName[key] !== undefined;
+            const isSingleDevice = (maxDevices === 1 || devices.length === 1) && devices.length === 1;
 
             return (
-              <div key={key} className="rounded-xl border border-[#DCF8C6] bg-white p-6">
+              <div key={key} className={`rounded-xl border border-[#DCF8C6] bg-white p-6 ${
+                isSingleDevice ? "col-span-full max-w-2xl mx-auto w-full"
+                  : "w-full"
+              }`}>
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editingName[key]}
-                        onChange={(e) =>
-                          setEditingName((prev) => ({ ...prev, [key]: e.target.value }))
-                        }
-                        onBlur={() => handleRenameBlur(key)}
-                        onKeyDown={(e) => handleRenameKeyDown(key, e)}
-                        className="rounded-lg border border-[#DCF8C6] px-2 py-1 text-sm font-semibold text-[#075E54] outline-none focus:border-[#25D366]"
-                        autoFocus
-                      />
-                    ) : (
-                      <h3
-                        className="cursor-pointer text-lg font-semibold text-[#075E54] hover:text-[#25D366]"
-                        onClick={() =>
-                          setEditingName((prev) => ({
-                            ...prev,
-                            [key]: device.name,
-                          }))
-                        }
-                      >
-                        {device.name}
-                      </h3>
-                    )}
-                    {!isEditing && device.deviceId !== "main" && (
-                      <button
-                        onClick={() =>
-                          setEditingName((prev) => ({
-                            ...prev,
-                            [key]: device.name,
-                          }))
-                        }
-                        className="text-zinc-400 hover:text-[#075E54]"
-                      >
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                        </svg>
-                      </button>
-                    )}
+                    <h3 className="text-lg font-semibold text-[#075E54]">
+                      {device.name}
+                    </h3>
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={device.status} isConnecting={!!isConnecting} hasQR={!!qr} />

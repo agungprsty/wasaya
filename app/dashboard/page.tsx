@@ -219,7 +219,7 @@ export default function DashboardPage() {
           <div className="mt-5 space-y-4">
             <div>
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-zinc-700">Harian</span>
+                <span className="font-medium text-zinc-700">Daily</span>
                 <span className="text-zinc-500">{dailySent.toLocaleString("id-ID")} / {dailyLimit === Infinity ? "∞" : dailyLimit.toLocaleString("id-ID")}</span>
               </div>
               <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-100">
@@ -231,7 +231,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-zinc-700">Bulanan</span>
+                <span className="font-medium text-zinc-700">Monthly</span>
                 <span className="text-zinc-500">{monthlySent.toLocaleString("id-ID")} / {monthlyLimit === Infinity ? "∞" : monthlyLimit.toLocaleString("id-ID")}</span>
               </div>
               <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-100">

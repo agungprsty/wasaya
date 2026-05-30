@@ -675,7 +675,7 @@ class BaileysManager {
       const tier = (sub?.tier as string) || "free";
 
       if (tier !== "pro" && tier !== "enterprise") {
-        return body + `\n\n_Sent via temanwa_`;
+        return body + `\n\n_-temanwa_`;
       }
 
       const settings = await prisma.settings.findUnique({ where: { userId } });
@@ -686,7 +686,7 @@ class BaileysManager {
           .replace(/\{\{phone\}\}/g, "")
           .trim();
         if (watermark) {
-          return body + `\n\n---\n${watermark}`;
+          return body + `\n\n${watermark}`;
         }
       }
     } catch {}
