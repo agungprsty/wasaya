@@ -6,7 +6,7 @@
 | Aspek | Detail |
 |---|---|
 | Harga | Rp 0 (selamanya) |
-| Pesan/bulan | 500 |
+| Pesan/bulan | 1.000 |
 | Kontak | 200 |
 | Template pesan | 10 |
 | Koneksi perangkat | 1 |
@@ -14,8 +14,8 @@
 | Broadcast massal | ✅ |
 | Pesan terjadwal | ✅ |
 | REST API | ✅ |
-| Webhook | ❌ |
-| Custom Watermark | ❌ |
+| Webhook | ✅ |
+| Custom Watermark | ✅ (hardcoded "-temanwa") |
 | Support | Community |
 
 ### Pro
@@ -25,7 +25,7 @@
 | Pesan/bulan | 5.000 |
 | Kontak | Tak terbatas |
 | Template pesan | Tak terbatas |
-| Koneksi perangkat | 2 |
+| Koneksi perangkat | 4 |
 | Bot auto-balas | ✅ |
 | Broadcast massal | ✅ |
 | Pesan terjadwal | ✅ |
@@ -56,21 +56,23 @@
 
 ## Database Schema
 
-### Field tambahan di User
+### Enhanced Subscription model + Transaction model
 
 ```prisma
 enum Plan { FREE PRO ENTERPRISE }
 
-model User {
-  // ... existing fields
-  plan          Plan      @default(FREE)
-  planExpiresAt DateTime?
+model Subscription {
+  id            String    @id @default(uuid())
+  userId        String    @unique
+  plan          Plan      @default(FREE)       // ← ganti String → enum
+  accountAge    String    @default("newborn")  // ← tetap
+  planExpiresAt DateTime?                       // ← baru
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
-```
 
-### Transaction model
-
-```prisma
 model Transaction {
   id              String    @id @default(uuid())
   userId          String
@@ -107,11 +109,11 @@ export const PLANS = {
   FREE: {
     label: "Free",
     price: 0,
-    maxMessagesPerMonth: 500,
+    maxMessagesPerMonth: 1000,
     maxContacts: 200,
     maxTemplates: 10,
     maxDevices: 1,
-    features: { webhook: false, watermark: false, chatbot: true, broadcast: true, scheduled: true, api: true },
+    features: { webhook: true, watermark: true, chatbot: true, broadcast: true, scheduled: true, api: true },
   },
   PRO: {
     label: "Pro",
@@ -119,7 +121,7 @@ export const PLANS = {
     maxMessagesPerMonth: 5000,
     maxContacts: Infinity,
     maxTemplates: Infinity,
-    maxDevices: 2,
+    maxDevices: 4,
     features: { webhook: true, watermark: true, chatbot: true, broadcast: true, scheduled: true, api: true },
   },
   ENTERPRISE: {
@@ -156,7 +158,7 @@ Dashboard → /dashboard/billing
   → User scan QRIS / transfer ke VA
   → Midtrans kirim POST ke /api/midtrans/notification
       → Match orderId → update Transaction (status: settlement, paidAt)
-      → Update User (plan: PRO, planExpiresAt: now + 30d)
+      → Update Subscription (plan: PRO, planExpiresAt: now + 30d)
   → Halaman billing auto-refresh, tampilkan "Pro aktif" + tanggal expired
 ```
 
@@ -284,21 +286,23 @@ import { PLANS, PlanTier } from "./plans";
 import { startOfMonth } from "date-fns";
 
 export async function checkLimit(userId: string, type: "messages" | "contacts" | "templates" | "devices") {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
+  const sub = await prisma.subscription.findUnique({
+    where: { userId },
     select: { plan: true, planExpiresAt: true },
   });
-  if (!user) return { ok: false, message: "User not found" };
+  if (!sub) return { ok: false, message: "Subscription not found" };
+
+  const plan = sub.plan as PlanTier;
 
   // Enterprise = unlimited
-  if (user.plan === "ENTERPRISE") return { ok: true };
+  if (plan === "ENTERPRISE") return { ok: true };
 
   // Plan expired?
-  if (user.plan !== "FREE" && user.planExpiresAt && user.planExpiresAt < new Date()) {
+  if (plan !== "FREE" && sub.planExpiresAt && sub.planExpiresAt < new Date()) {
     return { ok: false, message: "Plan has expired" };
   }
 
-  const limits = PLANS[user.plan as PlanTier];
+  const limits = PLANS[plan];
   if (!limits) return { ok: false, message: "Invalid plan" };
 
   let current: number;
@@ -358,12 +362,15 @@ export async function checkLimit(userId: string, type: "messages" | "contacts" |
 
 | File | Perubahan |
 |---|---|
-| `prisma/schema.prisma` | + enum Plan, + field plan & planExpiresAt di User, + model Transaction |
-| `app/api/auth/register/route.ts` | Set plan=FREE saat create user |
+| `prisma/schema.prisma` | + enum Plan, + field plan & planExpiresAt di Subscription, + model Transaction |
+| `app/api/auth/register/route.ts` | Set Subscription.plan=FREE saat create user |
 | `app/register/page.tsx` | Deteksi `?plan=pro` |
 | `app/page.tsx` | Update href pricing cards |
 | `app/dashboard/layout.tsx` | + nav "Billing" |
 | `app/dashboard/settings/page.tsx` | + card current plan + link billing |
+| `lib/api-tier.ts` | Konsolidasi dengan `lib/plans.ts` (ganti Tier → Plan, Subscription.tier → Subscription.plan) |
+| `lib/limit-constants.ts` | Hapus atau deprecate (digantikan `lib/plans.ts`) |
+| `app/dashboard/device/page.tsx` | Update TIER_DEVICE_LIMITS biar baca dari `lib/plans.ts` |
 | `.env` | + MIDTRANS_* |
 | `.env.example` | + MIDTRANS_* |
 

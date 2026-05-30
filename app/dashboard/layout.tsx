@@ -64,7 +64,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     .toUpperCase() || "?";
 
   return (
-    <div className="flex min-h-screen bg-[#DCF8C6]/20 font-sans">
+    <div className="flex min-h-screen overflow-x-hidden bg-[#DCF8C6]/20 font-sans">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -72,7 +72,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-[#DCF8C6] bg-white transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-hidden border-r border-[#DCF8C6] bg-white transition-transform lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -83,7 +83,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           TEMANWA
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="flex-1 overflow-y-auto space-y-1 px-3 py-4">
           {visibleNavItems.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -163,7 +163,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
               <p className="truncate text-sm font-medium text-zinc-900">{user?.name}</p>
               <p className="truncate text-xs text-zinc-500">{user?.email}</p>
             </div>
-            <button onClick={handleLogout} className="text-zinc-400 hover:text-red-500" title="Sign out">
+            <button onClick={handleLogout} className="text-zinc-400 hover:text-red-500 cursor-pointer" title="Sign out">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
               </svg>
@@ -173,7 +173,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col lg:pl-64">
         <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-[#DCF8C6] bg-white px-6 lg:hidden">
           <button onClick={() => setSidebarOpen(true)} className="text-zinc-600">
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

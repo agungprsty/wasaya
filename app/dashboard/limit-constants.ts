@@ -5,7 +5,7 @@ export const TIER_DAILY_LIMITS: Record<string, number> = {
 };
 
 export const TIER_MONTHLY_LIMITS: Record<string, number> = {
-  free: 500,
+  free: 1_000,
   pro: 5_000,
   enterprise: Infinity,
 };
