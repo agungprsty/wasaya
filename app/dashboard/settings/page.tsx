@@ -355,7 +355,7 @@ export default function SettingsPage() {
                 value={settings?.watermarkText || ""}
                 onChange={(e) => updateField("watermarkText", e.target.value)}
                 className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#25D366] focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
-                placeholder="Dikirim via WAGateway"
+                placeholder="Dikirim via TEMANWA"
               />
             </div>
             {settings?.watermarkText && (

@@ -1,419 +1,465 @@
 import Link from "next/link";
 import AuthNavButtons from "./AuthNavButtons";
-
-const features = [
-  {
-    title: "Kirim Pesan",
-    desc: "Kirim pesan individu dengan dukungan media (gambar, PDF, video), lokasi, dan template variabel.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.125A59.769 59.769 0 0121.485 12 59.768 59.768 0 013.27 20.875L5.999 12zm0 0h7.5" />
-      </svg>
-    ),
-  },
-  {
-    title: "Broadcast Massal",
-    desc: "Kirim pesan ke ratusan kontak sekaligus dengan rate limiting otomatis dan jeda alami untuk mencegah pemblokiran.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
-      </svg>
-    ),
-  },
-  {
-    title: "Pesan Terjadwal",
-    desc: "Jadwalkan pesan satu kali atau berulang (harian/mingguan/bulanan) untuk pengingat, promo, dan campaign berkala.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Bot Auto-Balas",
-    desc: "Buat aturan chatbot berbasis kata kunci dengan prioritas. Balas otomatis 24/7 tanpa perlu staff.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Template Pesan",
-    desc: "Simpan template dengan placeholder variabel yang bisa dipakai ulang untuk kirim pesan cepat dan konsisten.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Kontak & Grup",
-    desc: "Kelola kontak dengan import CSV, ekspor, dan kelompokkan ke dalam grup untuk broadcast tertarget.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Dashboard Analitik",
-    desc: "Pantau tren pengiriman, success rate, jam sibuk, rasio terima-kirim, dan usage limit dalam satu tampilan.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Multi-Perangkat",
-    desc: "Hubungkan lebih dari satu nomor WhatsApp via QR code atau pairing code. Kelola dari satu dashboard.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
-      </svg>
-    ),
-  },
-  {
-    title: "REST API & API Keys",
-    desc: "Akses penuh REST API dengan API Key (`wag_*`) untuk integrasi aplikasi eksternal secara aman.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
-      </svg>
-    ),
-  },
-  {
-    title: "Webhook & Integrasi",
-    desc: "Terima event pesan real-time via webhook HMAC-signature. Cocok untuk notifikasi, OTP, dan customer service.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Simulasi Manusia",
-    desc: "Typing indicator, jeda baca, dan delay dinamis per karakter — bot terlihat seperti manusia untuk anti-ban.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Watermark Branding",
-    desc: "Tambahkan watermark otomatis di setiap pesan keluar — cocok untuk branding bisnis Anda.",
-    icon: (
-      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.25 6.393a15.996 15.996 0 00-4.647 4.763m-3.42 3.42a1.5 1.5 0 01-.879 1.213 15.99 15.99 0 003.42 3.42z" />
-      </svg>
-    ),
-  },
-];
-
-const steps = [
-  { num: "01", title: "Buat Akun", desc: "Daftar gratis dan dapatkan akses ke dashboard dalam hitungan menit." },
-  { num: "02", title: "Hubungkan WhatsApp", desc: "Scan QR code atau gunakan pairing code untuk menghubungkan nomor Anda." },
-  { num: "03", title: "Mulai Kirim Pesan", desc: "Kirim pesan satuan, broadcast, atau jadwalkan — semua dari satu dashboard." },
-];
-
-const plans = [
-  {
-    name: "Free",
-    subtitle: "Untuk UMKM dan perorangan",
-    price: "Rp 0",
-    period: "selamanya",
-    cta: "Daftar Gratis",
-    href: "/register",
-    popular: false,
-    features: [
-      "500 pesan/bulan (hingga 50/hari)",
-      "1 koneksi perangkat",
-      "Bot auto-balas & aturan chatbot",
-      "Pesan terjadwal",
-      "Template pesan (10)",
-      "Manajemen kontak & grup",
-      "Dashboard analitik",
-      "Akses REST API & API Keys",
-    ],
-  },
-  {
-    name: "Pro",
-    subtitle: "Untuk bisnis berkembang pesat",
-    price: "Rp 49.000",
-    period: "/bulan",
-    cta: "Mulai Pro",
-    href: "/register",
-    popular: true,
-    features: [
-      "5.000 pesan/bulan (hingga 200/hari)",
-      "Broadcast massal",
-      "2 koneksi perangkat",
-      "Webhook integration",
-      "Custom watermark",
-      "Kontak & template tak terbatas",
-      "Admin bypass (3 nomor)",
-      "Prioritas antrean",
-      "Support prioritas",
-      "Semua fitur Free +",
-    ],
-  },
-  {
-    name: "Enterprise",
-    subtitle: "Untuk skala besar & tim",
-    price: null,
-    period: null,
-    cta: "Hubungi Kami",
-    href: "/register",
-    popular: false,
-    features: [
-      "Pesan tak terbatas",
-      "10+ koneksi perangkat",
-      "Dedicated chatbot engine",
-      "Proxy perangkat (isolasi IP)",
-      "Kustom simulasi manusia (ms-level)",
-      "Safety mode & monitoring",
-      "SLA 99,99% uptime",
-      "Account manager dedicated",
-      "Prioritas 24/7",
-      "Semua fitur Pro +",
-    ],
-  },
-];
+import {
+  MessageCircle,
+  Megaphone,
+  BarChart3,
+  CheckCircle2,
+  Star,
+  ArrowRight,
+  Play,
+  Zap,
+  ShieldCheck,
+  Bot,
+  Check,
+  Calendar,
+  Layers,
+  Smartphone,
+} from "lucide-react";
 
 export default function Home() {
   return (
-    <div className="flex flex-col font-sans">
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 w-full border-b border-[#DCF8C6] bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2 text-xl font-bold text-[#075E54]">
-            <svg className="h-7 w-7 text-[#25D366]" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-            </svg>
-            WAGateway
+    <div className="min-h-screen bg-white font-sans text-slate-600 selection:bg-[#25D366] selection:text-white overflow-x-hidden">
+      <style>{`
+        @keyframes scroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .animate-scroll {
+          animation: scroll 25s linear infinite;
+          width: max-content;
+        }
+        .animate-scroll:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="bg-[#25D366] p-2 rounded-xl">
+              <MessageCircle className="text-white w-6 h-6" />
+            </div>
+            <span className="text-2xl font-bold text-[#075E54] tracking-tight">TEMANWA</span>
           </Link>
-          <nav className="hidden items-center gap-8 sm:flex">
-            <a href="#features" className="text-sm font-medium text-zinc-600 hover:text-[#075E54]">Fitur</a>
-            <a href="#pricing" className="text-sm font-medium text-zinc-600 hover:text-[#075E54]">Harga</a>
-            <a href="#how-it-works" className="text-sm font-medium text-zinc-600 hover:text-[#075E54]">Cara Kerja</a>
-            <Link href="/docs" className="text-sm font-medium text-zinc-600 hover:text-[#075E54]">API Docs</Link>
-          </nav>
+
+          <div className="hidden md:flex items-center gap-8 font-medium text-sm text-slate-500">
+            <a href="#features" className="hover:text-[#25D366] transition-colors">Features</a>
+            <a href="#how-it-works" className="hover:text-[#25D366] transition-colors">How It Works</a>
+            <a href="#pricing" className="hover:text-[#25D366] transition-colors">Pricing</a>
+          </div>
+
           <AuthNavButtons />
         </div>
-      </header>
+      </nav>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-white to-[#DCF8C6]/30 pb-24 pt-20">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mx-auto max-w-3xl text-center">
-            <span className="inline-flex items-center rounded-full bg-[#DCF8C6] px-4 py-1.5 text-xs font-semibold text-[#075E54]">
-              Dipercaya 10.000+ bisnis di Indonesia
-            </span>
-            <h1 className="mt-8 text-4xl font-bold tracking-tight text-[#075E54] sm:text-5xl lg:text-6xl">
-              WhatsApp Gateway{" "}
-              <span className="bg-gradient-to-r from-[#25D366] to-[#075E54] bg-clip-text text-transparent">
-                untuk Bisnis Anda
-              </span>
+      <section className="pt-32 pb-20 md:pt-40 md:pb-32 px-6">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+          <div className="max-w-2xl">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#0F172A] leading-[1.15] mb-6">
+              Automate Your <br/>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#25D366] to-teal-500">Customer Communication</span> <br/>
+              At Scale
             </h1>
-            <p className="mt-6 text-lg leading-8 text-zinc-600">
-              Kirim pesan massal, otomatiskan komunikasi pelanggan, dan tingkatkan penjualan —
-              semua melalui platform yang mudah, aman, dan terjangkau.
+            <p className="text-lg md:text-xl text-slate-500 mb-8 leading-relaxed">
+              Connect seamlessly via our secure API. Engage your customers, launch smart broadcast campaigns, and provide real-time support with built-in protections for your business number.
             </p>
-            <div className="mt-10 flex items-center justify-center gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
               <Link
                 href="/register"
-                className="inline-flex h-12 items-center justify-center rounded-full bg-[#25D366] px-8 text-base font-medium text-white shadow-sm transition-all hover:bg-[#1DAF5A] hover:shadow-md"
+                className="flex items-center justify-center gap-2 bg-[#25D366] text-white px-8 py-4 rounded-full font-bold text-lg shadow-xl shadow-[#25D366]/30 hover:-translate-y-1 hover:shadow-2xl hover:shadow-[#25D366]/40 transition-all duration-300"
               >
-                Gratis Coba
+                Start For Free
+                <ArrowRight className="w-5 h-5" />
               </Link>
               <a
-                href="#features"
-                className="inline-flex h-12 items-center justify-center rounded-full border border-zinc-300 bg-white px-8 text-base font-medium text-zinc-700 transition-colors hover:bg-[#DCF8C6]"
+                href="#how-it-works"
+                className="flex items-center justify-center gap-2 bg-white text-[#0F172A] border-2 border-slate-200 px-8 py-4 rounded-full font-bold text-lg hover:border-slate-300 hover:bg-slate-50 transition-all duration-300"
               >
-                Pelajari
+                <Play className="w-5 h-5 fill-slate-800" />
+                See Demo
               </a>
             </div>
+            <p className="mt-10 text-sm text-slate-400 font-medium">Free forever. No credit card.</p>
           </div>
 
-          {/* Stats */}
-          <div className="mt-24 grid grid-cols-2 gap-8 md:grid-cols-4">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-[#075E54]">10K+</p>
-              <p className="mt-1 text-sm text-zinc-500">Bisnis Aktif</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-[#075E54]">1J+</p>
-              <p className="mt-1 text-sm text-zinc-500">Pesan Terkirim</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-[#075E54]">99,9%</p>
-              <p className="mt-1 text-sm text-zinc-500">Uptime</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-[#075E54]">#1</p>
-              <p className="mt-1 text-sm text-zinc-500">WhatsApp Gateway</p>
-            </div>
-          </div>
-        </div>
-      </section>
+          <div className="relative mx-auto w-full max-w-[360px] lg:max-w-none flex justify-center lg:justify-end">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-[#25D366]/20 rounded-full blur-3xl"></div>
+            <div className="absolute top-1/4 right-1/4 w-48 h-48 bg-teal-400/20 rounded-full blur-2xl"></div>
 
-      {/* Features Section */}
-      <section id="features" className="bg-white py-24">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-[#075E54] sm:text-4xl">
-              Semua Fitur yang Anda Butuhkan
-            </h2>
-            <p className="mt-4 text-lg leading-8 text-zinc-600">
-              Platform all-in-one untuk mengelola komunikasi bisnis Anda lewat WhatsApp.
-            </p>
-          </div>
-          <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {features.map((feature) => (
-              <div
-                key={feature.title}
-                className="group rounded-2xl border border-[#DCF8C6] bg-white p-8 transition-all hover:border-[#25D366] hover:shadow-lg"
-              >
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#DCF8C6] text-[#25D366]">
-                  {feature.icon}
+            <div className="relative w-[300px] h-[600px] bg-slate-900 rounded-[3rem] border-[10px] border-slate-900 shadow-2xl flex flex-col z-10 transform rotate-[-2deg] hover:rotate-0 transition-transform duration-500">
+              <div className="relative w-full h-full flex flex-col rounded-[2.25rem] overflow-hidden bg-[#EFEAE2] isolate">
+                <div className="absolute top-0 inset-x-0 h-6 bg-slate-900 rounded-b-2xl w-40 mx-auto z-20"></div>
+
+                <div className="bg-[#075E54] px-4 pt-10 pb-3 flex items-center gap-3 text-white shadow-sm z-10 shrink-0">
+                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+                    <Bot className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm">TEMANWA Bot</div>
+                    <div className="text-[10px] text-white/80">Online</div>
+                  </div>
                 </div>
-                <h3 className="mt-6 text-lg font-semibold text-[#075E54]">{feature.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-zinc-600">{feature.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="bg-[#DCF8C6]/20 py-24">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-[#075E54] sm:text-4xl">
-              Harga yang ramah di kantong
-            </h2>
-            <p className="mt-4 text-lg leading-8 text-zinc-600">
-              Gratis selamanya untuk UMKM. Upgrade kapanpun saat bisnis Anda berkembang.
-            </p>
-          </div>
-          <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {plans.map((plan) => (
-              <div
-                key={plan.name}
-                className={`relative flex flex-col rounded-2xl border-2 bg-white p-8 transition-all hover:shadow-lg ${
-                  plan.popular
-                    ? "border-[#25D366] shadow-md"
-                    : "border-[#DCF8C6] hover:border-[#25D366]"
-                }`}
-              >
-                {plan.popular && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center rounded-full bg-[#25D366] px-4 py-1 text-xs font-semibold text-white">
-                    Terpopuler
+                <div className="p-4 flex flex-col gap-3 flex-1 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-black/5 overflow-y-auto">
+                  <div className="self-end bg-[#DCF8C6] p-3 rounded-xl rounded-tr-sm shadow-sm max-w-[85%] text-sm text-slate-800">
+                    Hello! I need to check my order status. #INV-2026
+                    <div className="text-[10px] text-right text-slate-500 mt-1 flex justify-end gap-1 items-center">
+                      11:05 AM <CheckCircle2 className="w-3 h-3 text-blue-500" />
+                    </div>
+                  </div>
+
+                  <div className="self-start bg-white p-3 rounded-xl rounded-tl-sm shadow-sm max-w-[85%] text-sm text-slate-800 opacity-90">
+                    Hi there! 🤖 Your order <b>#INV-2026</b> is currently out for delivery and will arrive by 3:00 PM today.
+                    <div className="text-[10px] text-right text-slate-400 mt-1">11:05 AM</div>
+                  </div>
+
+                  <div className="self-start bg-white p-3 rounded-xl rounded-tl-sm shadow-sm max-w-[85%] text-sm text-slate-800 opacity-90">
+                    Would you like to track the driver in real-time?
+                    <div className="mt-2 flex flex-col gap-2">
+                      <button className="bg-sky-50 text-sky-600 font-semibold py-1.5 rounded-lg border border-sky-100 text-xs hover:bg-sky-100">Track Driver</button>
+                      <button className="bg-sky-50 text-sky-600 font-semibold py-1.5 rounded-lg border border-sky-100 text-xs hover:bg-sky-100">Contact Support</button>
+                    </div>
+                    <div className="text-[10px] text-right text-slate-400 mt-1">11:06 AM</div>
+                  </div>
+                </div>
+
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-lg border border-slate-100 flex items-center gap-2 whitespace-nowrap z-20">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#25D366] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-[#25D366]"></span>
                   </span>
-                )}
-                <h3 className="text-xl font-bold text-[#075E54]">{plan.name}</h3>
-                <p className="mt-1 text-sm text-zinc-500">{plan.subtitle}</p>
-                <div className="mt-6 flex items-baseline gap-1">
-                  {plan.price ? (
-                    <>
-                      <span className="text-4xl font-bold text-[#075E54]">{plan.price}</span>
-                      <span className="text-sm text-zinc-500">{plan.period}</span>
-                    </>
-                  ) : (
-                    <span className="text-2xl font-bold text-[#25D366]">Hubungi Kami</span>
-                  )}
+                  <span className="text-xs font-bold text-slate-700">Connection Active</span>
                 </div>
-                <ul className="mt-8 flex-1 space-y-4">
-                  {plan.features.map((feat) => (
-                    <li key={feat} className="flex items-start gap-3 text-sm text-zinc-600">
-                      <svg className="mt-0.5 h-4 w-4 shrink-0 text-[#25D366]" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                      </svg>
-                      {feat}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href={plan.href}
-                  className={`mt-8 inline-flex h-12 w-full items-center justify-center rounded-full text-base font-medium transition-all ${
-                    plan.popular
-                      ? "bg-[#25D366] text-white shadow-sm hover:bg-[#1DAF5A] hover:shadow-md"
-                      : "border border-zinc-300 bg-white text-zinc-700 hover:bg-[#DCF8C6]"
-                  }`}
-                >
-                  {plan.cta}
-                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Social Proof - Marquee */}
+      <section className="py-10 bg-[#F8FAFC] border-y border-slate-100 overflow-hidden relative">
+        <div className="max-w-7xl mx-auto px-6 text-center mb-8">
+          <p className="text-sm font-bold tracking-widest text-slate-400 uppercase">
+            Trusted by growing businesses & e-commerce brands
+          </p>
+        </div>
+
+        <div className="relative w-full overflow-hidden flex">
+          <div className="animate-scroll flex items-center gap-10 md:gap-20 px-5 md:px-10 cursor-default">
+            {[
+              'BrandOne', 'ShopifyX', 'Tokoku', 'EduTech', 'KlinikKu', 'MediaPlus',
+              'BrandOne', 'ShopifyX', 'Tokoku', 'EduTech', 'KlinikKu', 'MediaPlus'
+            ].map((brand, i) => (
+              <div key={i} className="text-xl md:text-2xl font-black text-slate-400 flex items-center gap-3 shrink-0 opacity-40 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-300">
+                <div className="w-8 h-8 md:w-10 md:h-10 bg-slate-300 rounded-md"></div>
+                {brand}
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features Grid */}
+      <section id="features" className="py-24 px-6 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0F172A] mb-4">Powerful Features, Built for Growth</h2>
+            <p className="text-lg text-slate-500">Everything you need to automate conversations without compromising the safety of your WhatsApp account.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="p-8 rounded-3xl bg-white border border-slate-100 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.05)] hover:-translate-y-2 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.08)] transition-all duration-300 group">
+              <div className="w-14 h-14 bg-blue-50 text-[#0F172A] rounded-2xl flex items-center justify-center mb-6 group-hover:bg-[#0F172A] group-hover:text-white transition-colors duration-300">
+                <MessageCircle className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-[#0F172A] mb-3">Two-Way Messaging</h3>
+              <p className="text-slate-500 leading-relaxed">
+                Build responsive auto-reply bots and handle customer support directly through our unified, real-time WebSocket connection.
+              </p>
+            </div>
+
+            <div className="p-8 rounded-3xl bg-white border border-slate-100 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.05)] hover:-translate-y-2 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.08)] transition-all duration-300 group">
+              <div className="w-14 h-14 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-[#25D366] group-hover:text-white transition-colors duration-300">
+                <Megaphone className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-[#0F172A] mb-3">Broadcast Campaigns</h3>
+              <p className="text-slate-500 leading-relaxed">
+                Reach hundreds of customers instantly. Our Smart Queue system spaces out deliveries to mimic human typing and protect your account.
+              </p>
+            </div>
+
+            <div className="p-8 rounded-3xl bg-white border border-slate-100 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.05)] hover:-translate-y-2 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.08)] transition-all duration-300 group">
+              <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
+                <BarChart3 className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-[#0F172A] mb-3">Real-time Analytics</h3>
+              <p className="text-slate-500 leading-relaxed">
+                Track delivery rates, read receipts, and monitor your device's connection status via a comprehensive safety dashboard.
+              </p>
+            </div>
+
+            <div className="p-8 rounded-3xl bg-white border border-slate-100 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.05)] hover:-translate-y-2 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.08)] transition-all duration-300 group">
+              <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-amber-600 group-hover:text-white transition-colors duration-300">
+                <Layers className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-[#0F172A] mb-3">Message Templates</h3>
+              <p className="text-slate-500 leading-relaxed">
+                Save reusable templates with variable placeholders for fast, consistent messaging across all your campaigns.
+              </p>
+            </div>
+
+            <div className="p-8 rounded-3xl bg-white border border-slate-100 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.05)] hover:-translate-y-2 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.08)] transition-all duration-300 group">
+              <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-rose-600 group-hover:text-white transition-colors duration-300">
+                <Calendar className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-[#0F172A] mb-3">Scheduled Messages</h3>
+              <p className="text-slate-500 leading-relaxed">
+                Schedule one-time or recurring messages for reminders, promotions, and regular campaigns with ease.
+              </p>
+            </div>
+
+            <div className="p-8 rounded-3xl bg-white border border-slate-100 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.05)] hover:-translate-y-2 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.08)] transition-all duration-300 group">
+              <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-purple-600 group-hover:text-white transition-colors duration-300">
+                <Smartphone className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-[#0F172A] mb-3">Multi-Device</h3>
+              <p className="text-slate-500 leading-relaxed">
+                Connect multiple WhatsApp numbers via QR code or pairing code and manage them all from one dashboard.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="bg-white py-24">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-[#075E54] sm:text-4xl">
-              Mulai dalam 3 langkah mudah
-            </h2>
-            <p className="mt-4 text-lg leading-8 text-zinc-600">
-              Dari nol hingga kirim pesan pertama dalam waktu kurang dari 10 menit.
-            </p>
+      <section id="how-it-works" className="py-24 px-6 bg-[#F8FAFC]">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0F172A] mb-4">Get Started in 3 Simple Steps</h2>
+            <p className="text-lg text-slate-500">Go from zero to automated in less than 2 minutes.</p>
           </div>
-          <div className="mt-16 grid gap-8 md:grid-cols-3">
-            {steps.map((step) => (
-              <div key={step.num} className="relative text-center">
-                <span className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-[#DCF8C6] text-2xl font-bold text-[#075E54]">
-                  {step.num}
-                </span>
-                <h3 className="mt-6 text-lg font-semibold text-[#075E54]">{step.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-zinc-600">{step.desc}</p>
+
+          <div className="flex flex-col md:flex-row items-start justify-between relative max-w-5xl mx-auto">
+            <div className="hidden md:block absolute top-8 left-12 right-12 h-0.5 bg-slate-200 z-0"></div>
+
+            <div className="relative z-10 flex flex-col items-center text-center max-w-xs mx-auto mb-12 md:mb-0">
+              <div className="w-16 h-16 bg-[#0F172A] text-white rounded-full flex items-center justify-center text-2xl font-bold mb-6 shadow-xl shadow-slate-900/20 border-4 border-[#F8FAFC]">
+                1
               </div>
-            ))}
+              <h3 className="text-xl font-bold text-[#0F172A] mb-2">Create Account</h3>
+              <p className="text-slate-500 text-sm leading-relaxed">Sign up for free and gain instant access to your full dashboard in just a few seconds.</p>
+            </div>
+
+            <div className="relative z-10 flex flex-col items-center text-center max-w-xs mx-auto mb-12 md:mb-0">
+              <div className="w-16 h-16 bg-[#25D366] text-white rounded-full flex items-center justify-center text-2xl font-bold mb-6 shadow-xl shadow-[#25D366]/30 border-4 border-[#F8FAFC]">
+                2
+              </div>
+              <h3 className="text-xl font-bold text-[#0F172A] mb-2">Connect WhatsApp</h3>
+              <p className="text-slate-500 text-sm leading-relaxed">Scan a QR code or use a pairing code to link your WhatsApp number securely to the platform.</p>
+            </div>
+
+            <div className="relative z-10 flex flex-col items-center text-center max-w-xs mx-auto">
+              <div className="w-16 h-16 bg-white text-[#0F172A] rounded-full flex items-center justify-center text-2xl font-bold mb-6 shadow-xl border-4 border-[#F8FAFC]">
+                3
+              </div>
+              <h3 className="text-xl font-bold text-[#0F172A] mb-2">Start Sending</h3>
+              <p className="text-slate-500 text-sm leading-relaxed">Send individual messages, launch broadcast campaigns, or schedule deliveries — all from a single dashboard.</p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="bg-gradient-to-br from-[#075E54] to-[#25D366] py-24">
-        <div className="mx-auto max-w-4xl px-6 text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Siap tingkatkan bisnis Anda?
-          </h2>
-          <p className="mt-4 text-lg leading-8 text-[#DCF8C6]">
-            Bergabung dengan ribuan UMKM yang sudah menggunakan WAGateway. Gratis selamanya, tanpa perlu kartu kredit.
-          </p>
-          <div className="mt-10 flex items-center justify-center gap-4">
-            <Link
-              href="/register"
-              className="inline-flex h-12 items-center justify-center rounded-full bg-white px-8 text-base font-medium text-[#075E54] shadow-sm transition-all hover:bg-[#DCF8C6] hover:shadow-md"
-            >
-              Gratis Coba
-            </Link>
-            <Link
-              href="/login"
-              className="inline-flex h-12 items-center justify-center rounded-full border border-white/30 px-8 text-base font-medium text-white transition-colors hover:bg-white/10"
-            >
-              Masuk
-            </Link>
+      {/* Testimonials */}
+      <section className="py-24 px-6 bg-white overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0F172A] mb-4">What Our Users Say</h2>
+            <p className="text-lg text-slate-500">Join thousands of growing businesses powering their communication.</p>
           </div>
+
+          <div className="flex flex-col md:flex-row gap-8 justify-center">
+            <div className="bg-slate-50 p-8 rounded-3xl max-w-md w-full mx-auto border border-slate-100">
+              <div className="flex gap-1 mb-4 text-amber-400">
+                <Star className="fill-current w-5 h-5" /><Star className="fill-current w-5 h-5" /><Star className="fill-current w-5 h-5" /><Star className="fill-current w-5 h-5" /><Star className="fill-current w-5 h-5" />
+              </div>
+              <p className="text-slate-600 italic mb-6 leading-relaxed">
+                &ldquo;TEMANWA completely changed how we handle our online store. The smart queuing system means I can broadcast to my customers without constantly worrying about my number getting blocked. The setup took less than 5 minutes!&rdquo;
+              </p>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-slate-300 rounded-full bg-[url('https://i.pravatar.cc/100?img=11')] bg-cover"></div>
+                <div>
+                  <div className="font-bold text-[#0F172A]">Budi Santoso</div>
+                  <div className="text-sm text-slate-500">E-commerce Owner</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-8 rounded-3xl max-w-md w-full mx-auto border border-slate-100 hidden md:block">
+              <div className="flex gap-1 mb-4 text-amber-400">
+                <Star className="fill-current w-5 h-5" /><Star className="fill-current w-5 h-5" /><Star className="fill-current w-5 h-5" /><Star className="fill-current w-5 h-5" /><Star className="fill-current w-5 h-5" />
+              </div>
+              <p className="text-slate-600 italic mb-6 leading-relaxed">
+                &ldquo;We upgraded to the Pro plan for our customer service team. The WebSocket connection is incredibly stable, and the API was a breeze to integrate into our existing CRM dashboard. Worth every penny.&rdquo;
+              </p>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-slate-300 rounded-full bg-[url('https://i.pravatar.cc/100?img=47')] bg-cover"></div>
+                <div>
+                  <div className="font-bold text-[#0F172A]">Siti Aminah</div>
+                  <div className="text-sm text-slate-500">CS Manager, TechKlinik</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="py-24 px-6 bg-[#F8FAFC] border-y border-slate-100">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0F172A] mb-4">Simple, Transparent Pricing</h2>
+            <p className="text-lg text-slate-500">Built to help small businesses grow. Upgrade anytime.</p>
+          </div>
+
+          <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto items-center">
+            {/* Free Plan */}
+            <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative">
+              <h3 className="text-xl font-bold text-[#0F172A] mb-2">Free</h3>
+              <p className="text-sm text-slate-500 mb-6">Untuk UMKM Mandiri & Pemula</p>
+              <div className="mb-8">
+                <span className="text-4xl font-extrabold text-[#0F172A]">Rp 0</span>
+                <span className="text-slate-500">/selamanya</span>
+              </div>
+              <ul className="space-y-4 mb-8">
+                <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> 500 Pesan / Bulan</li>
+                <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> Maks 50 Pesan / Hari</li>
+                <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> 1 Koneksi Perangkat</li>
+                <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> Auto-Balas (Basic)</li>
+                <li className="flex items-center gap-3 text-sm text-slate-600 font-semibold"><ShieldCheck className="w-5 h-5 text-[#25D366] shrink-0"/> Sistem Proteksi Meta (Aktif)</li>
+                <li className="flex items-center gap-3 text-sm text-slate-400 opacity-60"><Check className="w-5 h-5 shrink-0"/> Broadcast Massal</li>
+              </ul>
+              <Link
+                href="/register"
+                className="block w-full py-3.5 rounded-full font-semibold text-[#0F172A] bg-slate-100 hover:bg-slate-200 transition-colors text-center"
+              >
+                Daftar Gratis
+              </Link>
+            </div>
+
+            {/* Pro Plan */}
+            <div className="bg-[#0F172A] p-8 rounded-[2.5rem] border-2 border-[#25D366] shadow-2xl relative lg:scale-105 z-10 transform transition-transform">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#25D366] text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
+                Most Popular
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Pro</h3>
+              <p className="text-sm text-slate-400 mb-6">Untuk Bisnis Berkembang Pesat</p>
+              <div className="mb-8">
+                <span className="text-4xl font-extrabold text-white">Rp 49rb</span>
+                <span className="text-slate-400">/bulan</span>
+              </div>
+              <ul className="space-y-4 mb-8">
+                <li className="flex items-center gap-3 text-sm text-slate-200"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> 5.000 Pesan / Bulan</li>
+                <li className="flex items-center gap-3 text-sm text-slate-200"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> Maks 200 Pesan / Hari</li>
+                <li className="flex items-center gap-3 text-sm text-slate-200"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> 2 Koneksi Perangkat</li>
+                <li className="flex items-center gap-3 text-sm text-slate-200 font-bold text-white"><Zap className="w-5 h-5 text-amber-400 shrink-0 fill-current"/> Broadcast Massal (Smart Queue)</li>
+                <li className="flex items-center gap-3 text-sm text-slate-200"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> Pesan Terjadwal & Webhook</li>
+                <li className="flex items-center gap-3 text-sm text-slate-200"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> Panel Keamanan & Analytics</li>
+              </ul>
+              <Link
+                href="/register"
+                className="block w-full py-3.5 rounded-full font-bold text-white bg-[#25D366] shadow-lg shadow-[#25D366]/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#25D366]/40 transition-all duration-300 text-center"
+              >
+                Upgrade to Pro
+              </Link>
+            </div>
+
+            {/* Enterprise Plan */}
+            <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative">
+              <h3 className="text-xl font-bold text-[#0F172A] mb-2">Enterprise</h3>
+              <p className="text-sm text-slate-500 mb-6">Untuk Skala Besar & Tim</p>
+              <div className="mb-8">
+                <span className="text-4xl font-extrabold text-[#0F172A]">Custom</span>
+              </div>
+              <ul className="space-y-4 mb-8">
+                <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#0F172A] shrink-0"/> Pesan Tak Terbatas</li>
+                <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#0F172A] shrink-0"/> Multi-perangkat (Custom)</li>
+                <li className="flex items-center gap-3 text-sm text-slate-600 font-semibold"><ShieldCheck className="w-5 h-5 text-[#0F172A] shrink-0"/> Dedicated Proxy (Isolasi IP)</li>
+                <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#0F172A] shrink-0"/> Prioritas Antrean Utama</li>
+                <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#0F172A] shrink-0"/> Bebas Batasan Harian</li>
+                <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#0F172A] shrink-0"/> Account Manager Dedicated</li>
+              </ul>
+              <button className="w-full py-3.5 rounded-full font-semibold text-[#0F172A] border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors">
+                Contact Sales
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="bg-[#0F172A] py-24 px-6 text-center relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#25D366]/10 rounded-full blur-3xl translate-x-1/3 -translate-y-1/3"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl -translate-x-1/3 translate-y-1/3"></div>
+
+        <div className="max-w-3xl mx-auto relative z-10">
+          <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-6">
+            Ready to Transform Your Customer Communication?
+          </h2>
+          <p className="text-lg text-slate-400 mb-10">
+            Join the platform that empowers your business to connect safely, efficiently, and at scale.
+            Set up your automated workflow today.
+          </p>
+          <Link
+            href="/register"
+            className="inline-block bg-[#25D366] text-white px-10 py-5 rounded-full font-bold text-xl shadow-2xl shadow-[#25D366]/20 hover:-translate-y-1 hover:shadow-[#25D366]/40 transition-all duration-300"
+          >
+            Get Started Today
+          </Link>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-[#DCF8C6] bg-white py-12">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-6 md:flex-row">
-          <div className="flex items-center gap-2 text-sm font-bold text-[#075E54]">
-            <svg className="h-5 w-5 text-[#25D366]" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-            </svg>
-            WAGateway
+      <footer className="bg-[#0b1121] py-12 px-6 border-t border-white/10">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-8 mb-8 text-sm text-slate-400">
+          <div className="col-span-1 md:col-span-2">
+            <div className="flex items-center gap-2 mb-4">
+              <MessageCircle className="text-[#25D366] w-6 h-6" />
+              <span className="text-xl font-bold text-white tracking-tight">TEMANWA</span>
+            </div>
+            <p className="max-w-xs leading-relaxed">
+              Automating conversations securely. We protect your business numbers while helping you scale your customer reach.
+            </p>
           </div>
-          <p className="text-sm text-zinc-500">
-            &copy; {new Date().getFullYear()} WAGateway. All rights reserved.
-          </p>
+          <div>
+            <h4 className="text-white font-semibold mb-4">Product</h4>
+            <ul className="space-y-2">
+              <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
+              <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
+              <li><Link href="/docs" className="hover:text-white transition-colors">API Documentation</Link></li>
+              <li><Link href="/safety-guidelines" className="hover:text-white transition-colors">Safety Guidelines</Link></li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="text-white font-semibold mb-4">Company</h4>
+            <ul className="space-y-2">
+              <li><Link href="/about" className="hover:text-white transition-colors">About Us</Link></li>
+              <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
+              <li><Link href="/contact-support" className="hover:text-white transition-colors">Contact Support</Link></li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <p>&copy; 2026 TEMANWA. All rights reserved. Made in Yogyakarta.</p>
+          <div className="flex gap-4">
+            <a href="#" className="hover:text-white transition-colors">Twitter</a>
+            <a href="#" className="hover:text-white transition-colors">LinkedIn</a>
+            <a href="#" className="hover:text-white transition-colors">GitHub</a>
+          </div>
         </div>
       </footer>
     </div>

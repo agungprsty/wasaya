@@ -9,7 +9,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "WAGateway - WhatsApp Gateway Service",
+  title: "TEMANWA - WhatsApp Gateway Service",
   description: "Send bulk messages, automate customer communication, and drive engagement through a powerful WhatsApp Gateway platform.",
 };
 

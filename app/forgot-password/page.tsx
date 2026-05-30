@@ -2,23 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, FormEvent, useEffect } from "react";
+import { useState, FormEvent } from "react";
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json().catch(() => null))
-      .then((data) => {
-        if (data?.user) router.push("/dashboard");
-      })
-      .catch(() => {});
-  }, [router]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -26,21 +17,21 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email }),
       });
 
       let data;
       try { data = await res.json(); } catch { data = {}; }
 
       if (!res.ok) {
-        setError(data.error || "Login failed");
+        setError(data.error || "Request failed");
         return;
       }
 
-      router.push("/dashboard");
+      setSuccess(true);
     } catch {
       setError("Connection error. Please try again.");
     } finally {
@@ -103,80 +94,68 @@ export default function LoginPage() {
 
           <div className="mb-8">
             <h1 className="text-2xl font-semibold tracking-tight text-[#075E54]">
-              Welcome back
+              Forgot password?
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-              Enter your credentials to access your account.
+              No worries. Enter your email and we&apos;ll send you a reset link.
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                {error}
+          {success ? (
+            <div className="space-y-5">
+              <div className="rounded-xl border border-[#DCF8C6] bg-[#DCF8C6]/50 px-4 py-4 text-sm text-[#075E54]">
+                <p className="font-semibold">Check your inbox</p>
+                <p className="mt-1 text-zinc-600">
+                  If an account with <strong>{email}</strong> exists, we&apos;ve sent a password reset link.
+                </p>
               </div>
-            )}
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-zinc-700">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1.5 block w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors focus:border-[#25D366] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="password" className="block text-sm font-medium text-zinc-700">
-                  Password
-                </label>
-                <Link href="/forgot-password" className="text-xs font-medium text-[#075E54] transition-colors hover:text-[#25D366]">
-                  Forgot?
-                </Link>
-              </div>
-              <input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1.5 block w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors focus:border-[#25D366] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
-                placeholder="Enter your password"
-              />
-            </div>
-
-            <label className="flex items-center gap-2.5 text-sm text-zinc-500">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-zinc-300 text-[#25D366] focus:ring-[#25D366]/30"
-              />
-              Keep me signed in
-            </label>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex h-11 w-full items-center justify-center rounded-xl bg-[#25D366] px-5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1DAF5A] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? "Signing in..." : "Sign in"}
-            </button>
-
-            <p className="text-center text-sm text-zinc-400">
-              Don&apos;t have an account?{" "}
-              <Link href="/register" className="font-medium text-[#075E54] transition-colors hover:text-[#25D366]">
-                Create one
+              <Link
+                href="/login"
+                className="flex h-11 w-full items-center justify-center rounded-xl border border-zinc-300 bg-white text-sm font-medium text-zinc-700 transition-colors hover:bg-[#DCF8C6]"
+              >
+                Back to login
               </Link>
-            </p>
-          </form>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-zinc-700">
+                  Email address
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="mt-1.5 block w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors focus:border-[#25D366] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+                  placeholder="you@example.com"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex h-11 w-full items-center justify-center rounded-xl bg-[#25D366] px-5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1DAF5A] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? "Sending..." : "Send reset link"}
+              </button>
+
+              <p className="text-center text-sm text-zinc-400">
+                Remember your password?{" "}
+                <Link href="/login" className="font-medium text-[#075E54] transition-colors hover:text-[#25D366]">
+                  Sign in
+                </Link>
+              </p>
+            </form>
+          )}
         </div>
       </div>
     </div>

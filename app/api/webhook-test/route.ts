@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
 
   try {
     await deliverWebhook(user!.userId, "test", {
-      message: "This is a test webhook from WAGateway",
+      message: "This is a test webhook from TEMANWA",
     });
     return NextResponse.json({ ok: true });
   } catch (err: any) {
