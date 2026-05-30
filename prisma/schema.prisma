@@ -31,6 +31,7 @@ model User {
   webhookEvents      WebhookEvent[]
   passwordResetTokens PasswordResetToken[]
   usageRecords       UsageRecord[]
+  transactions       Transaction[]
 }
 
 model ApiKey {
@@ -114,15 +115,46 @@ model Settings {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
 model Subscription {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  tier      String   @default("free")
-  accountAge String   @default("newborn")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String    @id @default(uuid())
+  userId        String    @unique
+  tier          String    @default("free")
+  accountAge    String    @default("newborn")
+  plan          Plan      @default(FREE)
+  planExpiresAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id           String    @id @default(uuid())
+  userId       String
+  orderId      String    @unique
+  plan         Plan
+  amount       Int
+  paymentType  String?
+  bank         String?
+  vaNumber     String?
+  qrCodeUrl    String?
+  status       String    @default("pending")
+  midtransTxId String?
+  paidAt       DateTime?
+  expiredAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([orderId])
 }
 
 model AutoReplyLog {

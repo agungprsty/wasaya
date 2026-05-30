@@ -363,7 +363,7 @@ export default function Home() {
               <ul className="space-y-4 mb-8">
                 <li className="flex items-center gap-3 text-sm text-slate-200"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> 5.000 Pesan / Bulan</li>
                 <li className="flex items-center gap-3 text-sm text-slate-200"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> Maks 200 Pesan / Hari</li>
-                <li className="flex items-center gap-3 text-sm text-slate-200"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> 2 Koneksi Perangkat</li>
+                <li className="flex items-center gap-3 text-sm text-slate-200"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> 4 Koneksi Perangkat</li>
                 <li className="flex items-center gap-3 text-sm text-slate-200 font-bold text-white"><Zap className="w-5 h-5 text-amber-400 shrink-0 fill-current"/> Broadcast Massal (Smart Queue)</li>
                 <li className="flex items-center gap-3 text-sm text-slate-200"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> Pesan Terjadwal & Webhook</li>
                 <li className="flex items-center gap-3 text-sm text-slate-200"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> Panel Keamanan & Analytics</li>
