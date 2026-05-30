@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { TIER_DAILY_LIMITS, TIER_MONTHLY_LIMITS } from "@/app/dashboard/limit-constants";
+import { useDashboard } from "./dashboard-context";
 
 interface DailyData {
   date: string;
@@ -26,28 +27,19 @@ interface Analytics {
 }
 
 export default function DashboardPage() {
+  const { subscription, usage, settings } = useDashboard();
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [days, setDays] = useState(7);
-  const [webhookUrl, setWebhookUrl] = useState("");
-  const [tier, setTier] = useState("free");
-  const [dailySent, setDailySent] = useState(0);
-  const [monthlySent, setMonthlySent] = useState(0);
+
+  const tier = subscription?.tier ?? "free";
+  const dailySent = usage.daily;
+  const monthlySent = usage.monthly;
+  const webhookUrl = settings?.webhookUrl ?? "";
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/analytics?days=${days}`).then((r) => r.json().catch(() => null)),
-      fetch("/api/settings").then((r) => r.json().catch(() => ({}))),
-    ]).then(([a, s]) => {
-      setAnalytics(a);
-      setWebhookUrl(s.settings?.webhookUrl || "");
-      if (s.subscription) {
-        setTier(s.subscription.tier ?? "free");
-      }
-      if (s.usage) {
-        setDailySent(s.usage.daily ?? 0);
-        setMonthlySent(s.usage.monthly ?? 0);
-      }
-    });
+    fetch(`/api/analytics?days=${days}`)
+      .then((r) => r.json().catch(() => null))
+      .then(setAnalytics);
   }, [days]);
 
   const summary = analytics?.summary;

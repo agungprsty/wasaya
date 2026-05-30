@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { TIER_DAILY_LIMITS, TIER_MONTHLY_LIMITS } from "@/app/dashboard/limit-constants";
+import { useDashboard } from "../dashboard-context";
 
 interface SubscriptionData {
   tier: string;
@@ -37,6 +38,17 @@ function getSafetyLevel(pct: number): { label: string; color: string; bg: string
 }
 
 export default function SettingsPage() {
+  const {
+    settings: ctxSettings,
+    subscription: ctxSub,
+    usage: ctxUsage,
+    proxyUrl: ctxProxyUrl,
+    isQuarantined: ctxIsQuarantined,
+    safetyViolations: ctxSafetyViolations,
+    loading: ctxLoading,
+    refresh: dashboardRefresh,
+  } = useDashboard();
+
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [usage, setUsage] = useState<UsageData | null>(null);
@@ -50,20 +62,27 @@ export default function SettingsPage() {
   const [isQuarantined, setIsQuarantined] = useState(false);
   const [safetyViolations, setSafetyViolations] = useState(0);
 
+  const initializedRef = useRef(false);
+
   useEffect(() => {
-    Promise.all([
-      fetch("/api/settings").then((res) => res.json().catch(() => ({}))),
-      fetch("/api/analytics?metric=outbound-inbound-ratio").then((res) => res.json().catch(() => ({}))),
-    ]).then(([settingsData, ratioData]) => {
-      if (settingsData.settings) setSettings(settingsData.settings);
-      if (settingsData.subscription) setSubscription(settingsData.subscription);
-      if (settingsData.usage) setUsage(settingsData.usage);
-      if (typeof settingsData.proxyUrl === "string") setProxyUrl(settingsData.proxyUrl);
-      if (typeof settingsData.isQuarantined === "boolean") setIsQuarantined(settingsData.isQuarantined);
-      if (typeof settingsData.safetyViolations === "number") setSafetyViolations(settingsData.safetyViolations);
-      if (ratioData.data) setRatio(ratioData.data);
-    });
+    fetch("/api/analytics?metric=outbound-inbound-ratio")
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => {
+        if (data.data) setRatio(data.data);
+      });
   }, []);
+
+  useEffect(() => {
+    if (!initializedRef.current && !ctxLoading) {
+      initializedRef.current = true;
+      if (ctxSettings) setSettings(ctxSettings);
+      if (ctxSub) setSubscription(ctxSub);
+      if (ctxUsage) setUsage(ctxUsage);
+      if (typeof ctxProxyUrl === "string") setProxyUrl(ctxProxyUrl);
+      setIsQuarantined(ctxIsQuarantined);
+      setSafetyViolations(ctxSafetyViolations);
+    }
+  }, [ctxLoading]);
 
   const tier = subscription?.tier || "free";
   const isFree = tier === "free";
@@ -119,6 +138,7 @@ export default function SettingsPage() {
     });
     setSaving(false);
     setSaved(true);
+    dashboardRefresh();
     setTimeout(() => setSaved(false), 3000);
   }
 
