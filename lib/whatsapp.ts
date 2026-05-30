@@ -2,6 +2,8 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { deliverWebhook } from "@/lib/webhook";
 import { processChatbot, processAutoReply, markAutoReplySent } from "@/lib/chatbot";
+import { checkAndTrack } from "@/lib/usage-tracker";
+import { getUserTier } from "@/lib/api-tier";
 import { sleep, calculateTypingDelay, jitterDelay, humanDelay } from "@/lib/delay-engine";
 import { waLogger } from "@/lib/logger";
 import { usePrismaAuthState } from "@/lib/baileys-auth";
@@ -439,6 +441,12 @@ class BaileysManager {
         const typingEnabled = settings?.typingEnabled ?? true;
 
         if (replyText) {
+          const tier = await getUserTier(userId).catch(() => "free" as const);
+          const limitCheck = await checkAndTrack(userId, tier).catch(() => ({ allowed: true } as any));
+          if (!limitCheck.allowed) {
+            continue;
+          }
+
           const readingDelay = jitterDelay(readDelayMs);
           await sleep(readingDelay);
 
@@ -781,7 +789,18 @@ class BaileysManager {
     const waSocket = sock || this.sockets.get(key);
     if (!waSocket) return;
 
+    const tier = await getUserTier(userId).catch(() => "free" as const);
+
     for (const msg of pending) {
+      const limitCheck = await checkAndTrack(userId, tier).catch(() => ({ allowed: true } as any));
+      if (!limitCheck.allowed) {
+        await prisma.whatsAppMessage.update({
+          where: { id: msg.id },
+          data: { status: "failed" },
+        });
+        continue;
+      }
+
       try {
         const jid = toJID(msg.to);
         await waSocket.sendMessage(jid, { text: msg.body });

@@ -3,9 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/api-auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { validatePhone } from "@/lib/phone-utils";
-import { getUserTier, getTierLimits, getDailyLimit } from "@/lib/api-tier";
+import { getUserTier, getTierLimits } from "@/lib/api-tier";
 import { enqueueMessage } from "@/lib/message-queue";
-import { getUsage } from "@/lib/usage";
+import { checkAndTrack } from "@/lib/usage-tracker";
 import { toJID } from "@/lib/whatsapp";
 
 export async function GET(request: NextRequest) {
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
 
-  const rl = rateLimit(user!.userId, "messages", 30, 60000);
+  const rl = await rateLimit(user!.userId, "messages", 30, 60000);
   if (rl) return rl;
 
   const { to, body, media, deviceId, location } = await request.json();
@@ -67,34 +67,19 @@ export async function POST(request: NextRequest) {
     return toJID(phoneCheck.normalized);
   });
 
-  const [usage, dbUser] = await Promise.all([
-    getUsage(user!.userId),
-    prisma.user.findUnique({ where: { id: user!.userId }, select: { createdAt: true } }),
-  ]);
+  for (const jid of jids) {
+    const limitCheck = await checkAndTrack(user!.userId, tier, undefined, 1);
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: limitCheck.error,
+          upgrade_url: "/pricing",
+        },
+        { status: limitCheck.status || 429 },
+      );
+    }
 
-  const dailyLimit = await getDailyLimit(tier, dbUser?.createdAt ?? new Date());
-  if (usage.daily + jids.length > dailyLimit) {
-    return NextResponse.json(
-      {
-        error: `Batas harian tercapai (${usage.daily}/${dailyLimit} pesan/hari). Lanjut bulan depan atau upgrade ke Pro untuk ${limits.monthlyLimit === 500 ? "5.000" : "lebih banyak"} pesan/bulan.`,
-        upgrade_url: "/pricing",
-      },
-      { status: 429 },
-    );
-  }
-
-  if (usage.monthly + jids.length > limits.monthlyLimit) {
-    return NextResponse.json(
-      {
-        error: `Batas bulanan tercapai (${usage.monthly}/${limits.monthlyLimit}). Upgrade ke Pro untuk ${limits.monthlyLimit === 500 ? "5.000" : "lebih banyak"} pesan/bulan.`,
-        upgrade_url: "/pricing",
-      },
-      { status: 429 },
-    );
-  }
-
-  try {
-    for (const jid of jids) {
+    try {
       await enqueueMessage({
         userId: user!.userId,
         tier,
@@ -104,10 +89,10 @@ export async function POST(request: NextRequest) {
         deviceId: deviceId || "main",
         location: location || null,
       });
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message || "Failed to queue message" }, { status: 500 });
     }
-
-    return NextResponse.json({ ok: true, count: jids.length }, { status: 201 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Failed to queue message" }, { status: 500 });
   }
+
+  return NextResponse.json({ ok: true, count: jids.length }, { status: 201 });
 }

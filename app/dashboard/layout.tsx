@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Toaster } from "sonner";
 import LimitWatcher from "./limit-watcher";
+import { DashboardProvider, useDashboard } from "./dashboard-context";
+import { TIER_DAILY_LIMITS } from "./limit-constants";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: "M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zm0 9.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" },
@@ -22,35 +24,23 @@ const navItems = [
   { href: "/docs", label: "API Docs", icon: "M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" },
 ];
 
-const TIER_DAILY_LIMITS: Record<string, number> = {
-  free: 50,
-  pro: 200,
-  enterprise: Infinity,
-};
-
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <DashboardProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </DashboardProvider>
+  );
+}
+
+function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const { user, subscription, usage } = useDashboard();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [tier, setTier] = useState("free");
-  const [dailySent, setDailySent] = useState(0);
-  const [dailyLimit, setDailyLimit] = useState(50);
 
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json().catch(() => null))
-      .then((data) => {
-        if (!data?.user) { router.push("/login"); return; }
-        setUser(data.user);
-        if (data.subscription) {
-          setTier(data.subscription.tier);
-          setDailySent(data.subscription.dailySentCount ?? 0);
-          setDailyLimit(TIER_DAILY_LIMITS[data.subscription.tier] ?? 50);
-        }
-      })
-      .catch(() => router.push("/login"));
-  }, [router]);
+  const tier = subscription?.tier ?? "free";
+  const dailySent = usage.daily;
+  const dailyLimit = TIER_DAILY_LIMITS[tier] ?? 50;
 
   const isFree = tier === "free";
   const dailyPct = dailyLimit === Infinity ? 0 : Math.min(100, Math.round((dailySent / dailyLimit) * 100));

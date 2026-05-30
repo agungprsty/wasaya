@@ -334,7 +334,7 @@ export default function Home() {
                 <span className="text-slate-500">/selamanya</span>
               </div>
               <ul className="space-y-4 mb-8">
-                <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> 500 Pesan / Bulan</li>
+                <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> 1.000 Pesan / Bulan</li>
                 <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> Maks 50 Pesan / Hari</li>
                 <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> 1 Koneksi Perangkat</li>
                 <li className="flex items-center gap-3 text-sm text-slate-600"><Check className="w-5 h-5 text-[#25D366] shrink-0"/> Auto-Balas (Basic)</li>

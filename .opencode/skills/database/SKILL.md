@@ -30,8 +30,17 @@ model Contact {
 - **Timestamps** — `@default(now())` for `createdAt`, `@updatedAt` for `updatedAt`
 - **Nullable fields** — use `String?` (not `String | null` in schema)
 - **Enum-like values** — stored as plain `String` with documented status values
-- **JSON fields** — use Prisma `Json` type (`ScheduledMessage.recipients`, `WebhookEvent.payload`)
-- **Array fields** — use Prisma `String[]` (`ChatbotRule.keywords`)
+- **JSON fields** — use Prisma `Json` type (`ScheduledMessage.recipients`, `WebhookEvent.payload`, `Settings.enterpriseCustomSettings`)
+- **Array fields** — use Prisma `String[]` (`ChatbotRule.keywords`, `Settings.adminNumbers`)
+
+### Model Reference
+Current models in `prisma/schema.prisma` (17 models):
+- `User`, `ApiKey`, `Contact`, `Group`, `ContactGroup`, `WhatsAppMessage`, `Settings`, `Subscription`, `AutoReplyLog`, `WhatsAppSession`, `MessageTemplate`, `ScheduledMessage`, `ChatbotRule`, `Product`, `UsageRecord`, `PasswordResetToken`, `BaileysAuthCred`, `WebhookEvent`
+
+### Unique Constraints
+- `@@unique([userId, type, periodKey])` on `UsageRecord` for composite daily/monthly tracking
+- `@@unique([userId, deviceId])` on `WhatsAppSession` for per-user device uniqueness
+- `@@unique([userId, deviceId, category, keyId])` on `BaileysAuthCred` for WhatsApp signal keys
 
 ## Migrations
 ```bash
@@ -45,6 +54,7 @@ npx prisma generate              # Regenerate client (required before npm run bu
 2. **Always run `prisma generate`** after schema changes, especially before build
 3. **Never edit migration files manually** — use `prisma format` if needed
 4. **Keep migrations in version control**
+5. **After schema changes**: also check `instrumentation.ts` and `lib/` modules for impacted queries
 
 ## Query Patterns
 

@@ -117,6 +117,13 @@ useEffect(() => {
 }, []);
 ```
 
+### LocationPicker Component
+For location sharing in send forms, use the existing `LocationPicker` component:
+```typescript
+import LocationPicker from "@/app/components/LocationPicker";
+```
+It uses `leaflet` (react-leaflet) and returns `{ latitude, longitude, title }` or `null`.
+
 ## Tailwind CSS v4 Conventions
 
 ### Brand Colors
@@ -148,3 +155,4 @@ useEffect(() => {
 - Don't mix server and client component concerns
 - Don't forget `key` prop when rendering lists
 - Don't use deprecated `next/legacy/image` — use `next/image`
+- Don't call `next lint` — use `npm run lint` (ESLint CLI directly)

@@ -10,7 +10,7 @@ Create, modify, and debug RESTful API route handlers in `app/api/`.
 
 ## File Structure
 - Each resource has its own directory: `app/api/{resource}/route.ts`
-- Sub-resources get nested dirs: `app/api/contacts/bulk/route.ts`
+- Sub-resources get nested dirs: `app/api/auth/login/route.ts`
 - Main handler exports `GET`, `POST`, `PUT`, `DELETE` async functions
 
 ## Handler Pattern (Required)
@@ -69,15 +69,28 @@ const filter = searchParams.get("status");
 | `429` | Rate limited | (handled by `lib/rate-limit.ts`) |
 | `500` | Internal error | `{ error: err.message || "Internal error" }` |
 
+## Common Library Imports
+```typescript
+import { validatePhone } from "@/lib/phone-utils";      // Phone validation
+import { extractVariables, interpolate } from "@/lib/template-utils"; // Template vars
+import { whatsappManager } from "@/lib/whatsapp";        // WhatsApp send/connect
+import { rateLimit } from "@/lib/rate-limit";            // Rate limiting
+import { checkAndTrack, checkLimit } from "@/lib/usage-tracker"; // Usage limits
+import { getUserTier } from "@/lib/api-tier";            // Tier resolution
+import { toJID } from "@/lib/whatsapp";                  // JID formatting
+```
+
 ## Best Practices
 1. **Always check `requireUser()` first** — return early if auth fails
 2. **Use `Promise.all` for list + count** to reduce DB round trips
 3. **Cast Prisma `where` with `as any`** when building dynamic filters
-4. **Validate input** before processing (e.g., phone number validation)
+4. **Validate input** before processing (e.g., phone number validation with `validatePhone`)
 5. **Wrap non-critical ops in `.catch(() => {})`** to prevent cascading failures
 6. **Use explicit status codes**: `201` for create, `200` success, `202` queued
 7. **Rate limiting**: call `rateLimit(userId, key, maxRequests, windowMs)` early
 8. **Ownership enforcement**: filter by `userId`, use `updateMany`/`deleteMany`
+9. **Usage limits**: call `checkAndTrack(userId, tier)` before sending messages
+10. **JID conversion**: use `toJID()` to format phone numbers for WhatsApp
 
 ## Dynamic Where Clause
 ```typescript
