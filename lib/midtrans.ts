@@ -5,7 +5,9 @@ const MIDTRANS_BASE =
     ? "https://api.midtrans.com/v2"
     : "https://api.sandbox.midtrans.com/v2";
 
-const AUTH = Buffer.from(`${process.env.MIDTRANS_SERVER_KEY}:`).toString("base64");
+function getAuth(): string {
+  return Buffer.from(`${process.env.MIDTRANS_SERVER_KEY}:`).toString("base64");
+}
 
 export interface MidtransChargeResult {
   status_code: string;
@@ -17,7 +19,15 @@ export interface MidtransChargeResult {
   transaction_time: string;
   transaction_status: string;
   va_numbers?: { bank: string; va_number: string }[];
+  permata_va_number?: string;
+  bill_key?: string;
   actions?: { url: string; name: string; method: string }[];
+}
+
+function expiryPayload() {
+  const now = new Date();
+  const start = now.toISOString().replace(/\.\d{3}Z$/, " +0700");
+  return { start_time: start, unit: "minute", duration: 10 };
 }
 
 export async function chargeVA(
@@ -26,15 +36,37 @@ export async function chargeVA(
   bank: string,
   customer: { email: string },
 ): Promise<MidtransChargeResult> {
-  const res = await fetch(`${MIDTRANS_BASE}/charge`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Basic ${AUTH}` },
-    body: JSON.stringify({
+  let payload: Record<string, unknown>;
+
+  if (bank === "mandiri") {
+    payload = {
+      payment_type: "echannel",
+      transaction_details: { order_id: orderId, gross_amount: amount },
+      echannel: { bill_info1: "Payment:", bill_info2: "Pro Plan" },
+      customer_details: customer,
+      expiry: expiryPayload(),
+    };
+  } else if (bank === "permata") {
+    payload = {
+      payment_type: "permata",
+      transaction_details: { order_id: orderId, gross_amount: amount },
+      customer_details: customer,
+      expiry: expiryPayload(),
+    };
+  } else {
+    payload = {
       payment_type: "bank_transfer",
       transaction_details: { order_id: orderId, gross_amount: amount },
       bank_transfer: { bank },
       customer_details: customer,
-    }),
+      expiry: expiryPayload(),
+    };
+  }
+
+  const res = await fetch(`${MIDTRANS_BASE}/charge`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Basic ${getAuth()}` },
+    body: JSON.stringify(payload),
   });
   return res.json();
 }
@@ -46,12 +78,21 @@ export async function chargeQRIS(
 ): Promise<MidtransChargeResult> {
   const res = await fetch(`${MIDTRANS_BASE}/charge`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Basic ${AUTH}` },
+    headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Basic ${getAuth()}` },
     body: JSON.stringify({
       payment_type: "qris",
       transaction_details: { order_id: orderId, gross_amount: amount },
       customer_details: customer,
+      expiry: expiryPayload(),
     }),
+  });
+  return res.json();
+}
+
+export async function cancelTransaction(orderId: string): Promise<{ status_code: string; status_message: string }> {
+  const res = await fetch(`${MIDTRANS_BASE}/${orderId}/cancel`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Basic ${getAuth()}` },
   });
   return res.json();
 }

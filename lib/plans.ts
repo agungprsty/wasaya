@@ -1,3 +1,5 @@
+export const SERVICE_FEE = 3500;
+
 export const PLANS = {
   FREE: {
     label: "Free",

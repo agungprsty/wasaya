@@ -8,21 +8,21 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await prisma.subscription.updateMany({
-      where: {
-        plan: "PRO",
-        planExpiresAt: { lte: new Date() },
-      },
-      data: {
-        plan: "FREE",
-        tier: "free",
-        planExpiresAt: null,
-      },
-    });
+    const [subResult, txResult] = await Promise.all([
+      prisma.subscription.updateMany({
+        where: { plan: "PRO", planExpiresAt: { lte: new Date() } },
+        data: { plan: "FREE", tier: "free", planExpiresAt: null },
+      }),
+      prisma.transaction.updateMany({
+        where: { status: { in: ["order", "pending"] }, expiredAt: { lte: new Date() } },
+        data: { status: "expired" },
+      }),
+    ]);
 
     return NextResponse.json({
       ok: true,
-      expired: result.count,
+      expiredSubscriptions: subResult.count,
+      expiredOrders: txResult.count,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

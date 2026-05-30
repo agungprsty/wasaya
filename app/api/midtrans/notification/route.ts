@@ -42,20 +42,23 @@ export async function POST(request: NextRequest) {
       where: { orderId },
       data: {
         status,
-        midtransStatus: transactionStatus,
-        settledAt: status === "success" ? new Date() : undefined,
+        paidAt: status === "success" ? new Date() : undefined,
       },
     });
 
     if (status === "success") {
       const plan = transaction.plan;
       const durationDays = 30;
-      await prisma.subscription.update({
+      const planExpiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
+      await prisma.subscription.upsert({
         where: { userId: transaction.userId },
-        data: {
+        update: { plan, tier: plan.toLowerCase(), planExpiresAt },
+        create: {
+          userId: transaction.userId,
           plan,
           tier: plan.toLowerCase(),
-          planExpiresAt: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000),
+          planExpiresAt,
         },
       });
     }

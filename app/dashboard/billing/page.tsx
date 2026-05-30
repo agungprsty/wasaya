@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface TransactionData {
   id: string;
@@ -13,26 +13,25 @@ interface TransactionData {
   createdAt: string;
 }
 
-interface ChargeResultData {
-  orderId: string;
-  paymentType: string;
-  vaNumber?: string;
-  qrCodeUrl?: string;
-  bank?: string;
-  amount: number;
-  expiredAt: string;
-}
+const statusBadge: Record<string, { label: string; dot: string; bg: string }> = {
+  order: { label: "Order", dot: "bg-blue-400", bg: "bg-blue-50" },
+  pending: { label: "Pending", dot: "bg-yellow-400", bg: "bg-yellow-50" },
+  success: { label: "Success", dot: "bg-[#25D366]", bg: "bg-green-50" },
+  failed: { label: "Failed", dot: "bg-red-500", bg: "bg-red-50" },
+  cancelled: { label: "Cancelled", dot: "bg-gray-400", bg: "bg-gray-50" },
+  expired: { label: "Expired", dot: "bg-orange-400", bg: "bg-orange-50" },
+};
 
 export default function BillingPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [plan, setPlan] = useState<string>("FREE");
   const [planExpiresAt, setPlanExpiresAt] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<TransactionData[]>([]);
   const [showModal, setShowModal] = useState(searchParams.get("upgrade") === "pro");
-  const [paymentType, setPaymentType] = useState<"bank_transfer" | "qris">("bank_transfer");
-  const [bank, setBank] = useState("bca");
-  const [charging, setCharging] = useState(false);
-  const [chargeResult, setChargeResult] = useState<ChargeResultData | null>(null);
+  const [ordering, setOrdering] = useState(false);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -46,184 +45,217 @@ export default function BillingPage() {
 
     fetch("/api/subscription/transactions")
       .then((r) => r.json().catch(() => ({ data: [] })))
-      .then((d) => setTransactions(d.data || []))
+      .then((d) => {
+        const list = d.data || [];
+        setTransactions(list);
+        const active = list.find((t: any) => t.status === "order" || t.status === "pending");
+        if (active) setPendingOrderId(active.orderId);
+      })
       .catch(() => {});
   }, []);
 
   const isProActive = plan === "PRO" && planExpiresAt && new Date(planExpiresAt) > new Date();
   const isExpired = plan === "PRO" && planExpiresAt && new Date(planExpiresAt) <= new Date();
 
-  const handleUpgrade = async (e: FormEvent) => {
-    e.preventDefault();
-    setCharging(true);
-    setError("");
-    setChargeResult(null);
-
+  const handleCancel = async (orderId: string) => {
+    setCancelling(orderId);
     try {
-      const res = await fetch("/api/subscription/upgrade", {
+      const res = await fetch("/api/subscription/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "PRO", paymentType, bank: paymentType === "bank_transfer" ? bank : undefined }),
+        body: JSON.stringify({ orderId }),
+      });
+      if (res.ok) {
+        setTransactions((prev) => prev.map((t) => t.orderId === orderId ? { ...t, status: "cancelled" } : t));
+      }
+    } catch {}
+    setCancelling(null);
+  };
+
+  const handleCreateOrder = async () => {
+    setOrdering(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/subscription/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: "PRO" }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to initiate payment");
+        if (res.status === 409 && data.existingOrderId) {
+          router.push(`/dashboard/billing/payment/${data.existingOrderId}`);
+          return;
+        }
+        setError(data.error || "Failed to create order");
       } else {
-        setChargeResult(data);
+        router.push(`/dashboard/billing/payment/${data.orderId}`);
       }
     } catch {
       setError("Network error");
     } finally {
-      setCharging(false);
+      setOrdering(false);
     }
   };
 
-  const copyToClipboard = (text: string) => navigator.clipboard.writeText(text);
-
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold">Billing & Subscription</h1>
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
+      <h1 className="text-xl font-semibold text-[#075E54] sm:text-2xl">Billing & Subscription</h1>
+      <p className="mt-1 text-sm text-zinc-500">Manage your plan and payment history.</p>
 
-      <div className="p-8 rounded-xl border border-[#DCF8C6] bg-white flex items-center justify-between">
+      <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-500">Current Plan</p>
-          <p className="text-lg font-bold mt-1">{plan === "PRO" ? "Pro" : plan === "ENTERPRISE" ? "Enterprise" : "Free"}</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-zinc-400">Current Plan</p>
+          <p className="text-lg font-bold mt-1 text-zinc-900">{plan === "PRO" ? "Pro" : plan === "ENTERPRISE" ? "Enterprise" : "Free"}</p>
           {plan === "PRO" && planExpiresAt && (
-            <p className={`text-sm mt-1 ${isExpired ? "text-red-600" : "text-green-600"}`}>
+            <p className={`text-sm mt-0.5 ${isExpired ? "text-red-600" : "text-[#25D366]"}`}>
               {isExpired ? "Expired" : "Active until"} {new Date(planExpiresAt).toLocaleDateString("id-ID", { year: "numeric", month: "long", day: "numeric" })}
             </p>
           )}
         </div>
-        {!isProActive && (
+        {!isProActive && !pendingOrderId && (
           <button
             onClick={() => setShowModal(true)}
-            className="px-6 py-2 bg-[#075E54] text-white rounded-lg hover:opacity-90 transition text-sm font-medium"
+            className="rounded-xl bg-[#075E54] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#054d44]"
           >
             {isExpired ? "Renew Pro" : "Upgrade to Pro"}
           </button>
         )}
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { if (!charging) setShowModal(false) }}>
-          <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-4">Upgrade to Pro</h2>
-            <p className="text-sm text-gray-600 mb-6">Rp 49.000 / month — 5,000 messages, 4 devices, no watermark.</p>
-
-            {chargeResult ? (
-              <div className="space-y-4">
-                <div className="p-4 border rounded-lg bg-green-50 border-green-200">
-                  <p className="text-sm font-medium text-green-800">Payment initiated!</p>
-                  <p className="text-xs text-green-600 mt-1">Order: {chargeResult.orderId}</p>
-                </div>
-
-                {chargeResult.vaNumber && (
-                  <div className="p-4 border rounded-lg bg-gray-50">
-                    <p className="text-xs text-gray-500 mb-1">Virtual Account</p>
-                    <p className="text-sm font-bold">{chargeResult.bank?.toUpperCase()}</p>
-                    <p className="text-lg font-mono font-bold mt-1">{chargeResult.vaNumber}</p>
-                    <button
-                      onClick={() => copyToClipboard(chargeResult.vaNumber!)}
-                      className="text-xs text-[#075E54] underline mt-1"
-                    >
-                      Copy VA Number
-                    </button>
-                  </div>
-                )}
-
-                {chargeResult.qrCodeUrl && (
-                  <div className="p-4 border rounded-lg bg-gray-50 flex flex-col items-center">
-                    <p className="text-xs text-gray-500 mb-2">Scan QRIS</p>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={chargeResult.qrCodeUrl} alt="QRIS" className="w-48 h-48" />
-                  </div>
-                )}
-
-                <p className="text-xs text-gray-400">Expires: {new Date(chargeResult.expiredAt).toLocaleString("id-ID")}</p>
-
-                <button
-                  onClick={() => { setShowModal(false); setChargeResult(null) }}
-                  className="w-full py-2 border border-gray-300 rounded-lg text-sm"
-                >
-                  Close
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleUpgrade} className="space-y-4">
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">Payment Method</label>
-                  <select
-                    value={paymentType}
-                    onChange={(e) => setPaymentType(e.target.value as "bank_transfer" | "qris")}
-                    className="w-full px-4 py-3 border border-[#DCF8C6] rounded-xl text-sm focus:border-[#25D366] focus:ring-2 focus:ring-[#25D366]/15 outline-none"
-                  >
-                    <option value="bank_transfer">Bank Transfer (BCA / Mandiri / BNI / Permata)</option>
-                    <option value="qris">QRIS</option>
-                  </select>
-                </div>
-
-                {paymentType === "bank_transfer" && (
-                  <div>
-                    <label className="text-xs text-gray-500 block mb-1">Bank</label>
-                    <select
-                      value={bank}
-                      onChange={(e) => setBank(e.target.value)}
-                      className="w-full px-4 py-3 border border-[#DCF8C6] rounded-xl text-sm focus:border-[#25D366] focus:ring-2 focus:ring-[#25D366]/15 outline-none"
-                    >
-                      <option value="bca">BCA</option>
-                      <option value="mandiri">Mandiri</option>
-                      <option value="bni">BNI</option>
-                      <option value="permata">Permata</option>
-                    </select>
-                  </div>
-                )}
-
-                {error && <p className="text-sm text-red-600">{error}</p>}
-
-                <button
-                  type="submit"
-                  disabled={charging}
-                  className="w-full py-3 bg-[#075E54] text-white rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
-                >
-                  {charging ? "Processing..." : `Pay Rp ${(49000).toLocaleString("id-ID")}`}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="w-full py-2 text-sm text-gray-500"
-                >
-                  Cancel
-                </button>
-              </form>
-            )}
-          </div>
+      {pendingOrderId && (
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-5 py-3 text-sm">
+          <svg className="h-5 w-5 shrink-0 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-orange-800">
+            You have an unpaid order.{" "}
+            <button onClick={() => router.push(`/dashboard/billing/payment/${pendingOrderId}`)} className="font-medium underline transition-colors hover:text-orange-900">
+              Pay now
+            </button>{" "}
+            or cancel it from the transaction list below.
+          </span>
         </div>
       )}
 
-      <div className="p-8 rounded-xl border border-gray-200 bg-white">
-        <h2 className="font-bold mb-4">Transaction History</h2>
+      <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6">
+        <h2 className="text-sm font-semibold text-zinc-900">Transaction History</h2>
         {transactions.length === 0 ? (
-          <p className="text-sm text-gray-500">No transactions yet.</p>
+          <p className="mt-4 text-sm text-zinc-400">No transactions yet.</p>
         ) : (
-          <div className="space-y-2">
-            {transactions.map((tx) => (
-              <div key={tx.id} className="flex items-center justify-between py-2 border-b border-gray-100 text-sm">
-                <div>
-                  <p className="font-medium">{tx.orderId}</p>
-                  <p className="text-xs text-gray-400">{new Date(tx.createdAt).toLocaleDateString("id-ID")}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium">Rp {tx.amount.toLocaleString("id-ID")}</p>
-                  <p className={`text-xs ${tx.status === "success" ? "text-green-600" : tx.status === "pending" ? "text-yellow-600" : "text-red-600"}`}>
-                    {tx.status}
-                  </p>
-                </div>
-              </div>
-            ))}
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[400px] md:min-w-0">
+              <thead>
+                <tr className="border-b border-gray-100 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                  <th className="px-3 py-3 text-left">Order ID</th>
+                  <th className="px-3 py-3 text-left hidden sm:table-cell">Date</th>
+                  <th className="px-3 py-3 text-right hidden sm:table-cell">Amount</th>
+                  <th className="px-3 py-3 text-center">Status</th>
+                  <th className="px-3 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((tx) => {
+                  const badge = statusBadge[tx.status] || { label: tx.status, dot: "bg-gray-400", bg: "bg-gray-50" };
+                  return (
+                    <tr
+                      key={tx.id}
+                      onClick={() => router.push(`/dashboard/billing/payment/${tx.orderId}`)}
+                      className="cursor-pointer border-b border-gray-50 text-sm transition-colors hover:bg-zinc-50 last:border-0"
+                    >
+                      <td className="px-3 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${badge.dot}`} />
+                          <div>
+                            <p className="font-medium text-zinc-800">{tx.orderId}</p>
+                            <p className="text-xs text-zinc-400 sm:hidden">{new Date(tx.createdAt).toLocaleDateString("id-ID")}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3.5 text-zinc-500 hidden sm:table-cell">{new Date(tx.createdAt).toLocaleDateString("id-ID")}</td>
+                      <td className="px-3 py-3.5 text-right font-medium text-zinc-900 hidden sm:table-cell">Rp {tx.amount.toLocaleString("id-ID")}</td>
+                      <td className="px-3 py-3.5 text-center">
+                        <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium ${badge.bg} text-zinc-700`}>
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3.5 text-right">
+                        {(tx.status === "order" || tx.status === "pending") && (
+                          <div className="flex items-center justify-end gap-2">
+                            {tx.status === "order" && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/billing/payment/${tx.orderId}`) }}
+                                className="cursor-pointer rounded-lg border border-[#075E54] px-2.5 py-1 text-xs font-medium text-[#075E54] transition-colors hover:bg-[#075E54] hover:text-white"
+                              >
+                                Pay now
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleCancel(tx.orderId) }}
+                              disabled={cancelling === tx.orderId}
+                              className="cursor-pointer rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                            >
+                              {cancelling === tx.orderId ? "..." : "Cancel"}
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { if (!ordering) setShowModal(false) }}>
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-zinc-900">Upgrade to Pro</h2>
+            <p className="mt-1 text-sm text-zinc-500">5,000 messages / month &bull; 4 devices &bull; No watermark &bull; Priority support</p>
+
+            <div className="mt-6 space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-600">Pro Plan</span>
+                <span className="font-medium text-zinc-900">Rp 49.000</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-600">Service Fee</span>
+                <span className="font-medium text-zinc-900">Rp 3.500</span>
+              </div>
+              <hr className="border-gray-200" />
+              <div className="flex justify-between text-sm font-semibold text-zinc-900">
+                <span>Total</span>
+                <span>Rp 52.500</span>
+              </div>
+            </div>
+
+            {error && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleCreateOrder}
+              disabled={ordering}
+              className="mt-6 flex h-11 w-full items-center justify-center rounded-xl bg-[#075E54] px-5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#054d44] disabled:opacity-60"
+            >
+              {ordering ? "Creating order..." : "Buat Pesanan"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowModal(false)}
+              className="mt-2 flex h-11 w-full items-center justify-center text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

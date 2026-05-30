@@ -140,26 +140,33 @@ export type PlanTier = keyof typeof PLANS;
 
 ---
 
-## Upgrade Flow
+## Upgrade Flow (new)
 
 ```
-Landing page → klik "Mulai Pro"
-  → /register?plan=pro
-  → Register + auto-assign plan=FREE (sementara)
-
 Dashboard → /dashboard/billing
-  → Pilih plan (Pro)
-  → Pilih metode: VA (BCA/Mandiri/BNI) atau QRIS
-  → POST /api/subscription/upgrade { plan: "pro", paymentType: "bank_transfer", bank: "bca" }
-      → Create Transaction (orderId: WA-{uuid}, status: pending)
-      → Midtrans Core API /charge (VA or QRIS)
+  → Pilih "Upgrade to Pro"
+  → Modal tampilkan: Rp 49.000 + biaya layanan Rp 3.500 = Rp 52.500
+  → Klik "Buat Pesanan"
+  → POST /api/subscription/order { plan: "PRO" }
+      → Create Transaction (orderId: WA-{uuid}, amount: 52500, status: "order")
+      → Return { orderId }
+  → redirect /dashboard/billing/payment/{orderId}
+
+/dashboard/billing/payment/{orderId}
+  → Tampilkan detail pesanan (plan, amount, service fee, total)
+  → Pilih metode: Bank Transfer (BCA/Mandiri/BNI/Permata) atau QRIS
+  → Klik "Bayar"
+  → POST /api/subscription/pay { orderId, paymentType, bank? }
+      → Validasi order milik user & status masih "order"
+      → Call Midtrans Core API /charge (VA or QRIS, gross_amount: 52500)
+      → Update Transaction (status: "pending", paymentType, bank, vaNumber/qrCodeUrl, midtransTxId)
       → Return VA number / QR code URL
-  → Tampilkan instruksi pembayaran di halaman
+  → Tampilkan VA number / QR code di halaman
   → User scan QRIS / transfer ke VA
   → Midtrans kirim POST ke /api/midtrans/notification
       → Match orderId → update Transaction (status: settlement, paidAt)
       → Update Subscription (plan: PRO, planExpiresAt: now + 30d)
-  → Halaman billing auto-refresh, tampilkan "Pro aktif" + tanggal expired
+  → Halaman payment auto-detect sukses, redirect ke /dashboard/billing
 ```
 
 ---
@@ -246,7 +253,9 @@ MIDTRANS_IS_PRODUCTION=false
 
 | Route | Method | Fungsi |
 |---|---|---|
-| `/api/subscription/upgrade` | POST | Initiate Midtrans charge, create Transaction |
+| `/api/subscription/upgrade` | POST | *(deprecated)* Initiate Midtrans charge langsung |
+| `/api/subscription/order` | POST | Buat Transaction (status: "order"), return orderId |
+| `/api/subscription/pay` | POST | Validasi + charge Midtrans, update Transaction ke "pending" |
 | `/api/subscription/status` | GET | Current plan, planExpiresAt, active? |
 | `/api/subscription/transactions` | GET | Riwayat transaksi user |
 | `/api/midtrans/notification` | POST | Webhook dari Midtrans |
@@ -265,11 +274,16 @@ MIDTRANS_IS_PRODUCTION=false
 - Setelah register, redirect ke `/dashboard/billing` (bukan `/dashboard`)
 
 ### Billing page (`app/dashboard/billing/page.tsx`)
-- Jika FREE: tampilkan plan cards Free / Pro / Enterprise
+- Jika FREE: tampilkan current plan + tombol "Upgrade to Pro"
+- Modal upgrade: info harga Rp 49.000 + biaya layanan Rp 3.500 = Rp 52.500
+- Tombol "Buat Pesanan" → POST /api/subscription/order → redirect ke `/dashboard/billing/payment/{orderId}`
 - Jika Pro aktif: tampilkan status + countdown expired
-- Pilih metode pembayaran: VA / QRIS
-- Tampilkan VA number atau QR code
-- Polling status transaksi tiap 5 detik
+
+### Payment page (`app/dashboard/billing/payment/[orderId]/page.tsx`)
+- Detail pesanan: plan, amount, service fee, total
+- Pilih metode: Bank Transfer (BCA/Mandiri/BNI/Permata) atau QRIS
+- Tombol "Bayar" → POST /api/subscription/pay → tampilkan VA/QR code
+- Auto-redirect ke `/dashboard/billing` setelah pembayaran sukses
 
 ### Settings page (`app/dashboard/settings/page.tsx`)
 - Tambah card "Current Plan" + link ke `/dashboard/billing`
@@ -349,14 +363,14 @@ export async function checkLimit(userId: string, type: "messages" | "contacts" |
 | `lib/plans.ts` | Baru |
 | `lib/midtrans.ts` | Baru |
 | `lib/check-limit.ts` | Baru |
-| `app/api/subscription/upgrade/route.ts` | Baru |
+| `app/api/subscription/order/route.ts` | Baru |
+| `app/api/subscription/pay/route.ts` | Baru |
 | `app/api/subscription/status/route.ts` | Baru |
 | `app/api/subscription/transactions/route.ts` | Baru |
 | `app/api/midtrans/notification/route.ts` | Baru |
 | `app/api/subscription/expire/route.ts` | Baru |
 | `app/dashboard/billing/page.tsx` | Baru |
-| `components/PaymentVA.tsx` | Baru |
-| `components/PaymentQRIS.tsx` | Baru |
+| `app/dashboard/billing/payment/[orderId]/page.tsx` | Baru |
 
 ### Files yang dimodifikasi
 
@@ -378,21 +392,21 @@ export async function checkLimit(userId: string, type: "messages" | "contacts" |
 
 ## Prioritas Implementasi
 
-### Phase 1 (inti)
+### Phase 1 (core)
 1. `prisma/schema.prisma` — schema changes
 2. `npx prisma migrate dev --name add-plan-and-transaction`
 3. `lib/plans.ts`
 4. `lib/midtrans.ts`
-5. `POST /api/subscription/upgrade`
+5. `POST /api/subscription/order` + `POST /api/subscription/pay` (split dari upgrade)
 6. `POST /api/midtrans/notification`
 7. `GET /api/subscription/status`
-8. `app/dashboard/billing/page.tsx` (dengan PaymentVA & PaymentQRIS)
-9. Modifikasi register API + landing page pricing
-
-### Phase 2 (opsional, bisa ditunda)
-10. Plan enforcement (`lib/check-limit.ts` + guard di API routes)
+8. `GET /api/subscription/transactions`
+9. `app/dashboard/billing/page.tsx` (modal: Buat Pesanan → redirect)
+10. `app/dashboard/billing/payment/[orderId]/page.tsx`
 11. Expiry cron (`POST /api/subscription/expire`)
-12. Notifikasi H-7/H-1 (in-app / email)
-13. `app/register/page.tsx` — handling `?plan=pro`
-14. `app/dashboard/settings/page.tsx` — current plan card
-15. `GET /api/subscription/transactions`
+12. Modifikasi register + landing page + settings + sidebar
+
+### Phase 2 (opsional)
+13. Plan enforcement (`lib/check-limit.ts` + guard di API routes)
+14. Notifikasi H-7/H-1 (in-app / email)
+15. `app/register/page.tsx` — handling `?plan=pro`
