@@ -12,11 +12,18 @@ export async function POST(request: NextRequest) {
   const { phone } = await request.json().catch(() => ({}));
 
   if (phone) {
-    const code = await whatsappManager.startPairing(user!.userId, phone, deviceId);
-    if (!code) {
-      return NextResponse.json({ error: "Failed to generate pairing code" }, { status: 500 });
+    try {
+      const code = await whatsappManager.startPairing(user!.userId, phone, deviceId);
+      if (!code) {
+        return NextResponse.json({ error: "Failed to generate pairing code" }, { status: 500 });
+      }
+      return NextResponse.json({ pairingCode: code, ok: true });
+    } catch (err: any) {
+      return NextResponse.json(
+        { error: err.message || "Failed to start pairing" },
+        { status: 409 },
+      );
     }
-    return NextResponse.json({ pairingCode: code, ok: true });
   }
 
   whatsappManager.startConnect(user!.userId, 0, deviceId).catch(() => {});

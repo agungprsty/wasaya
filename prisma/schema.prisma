@@ -150,6 +150,7 @@ model WhatsAppSession {
   safetyViolations Int      @default(0)
   lastViolationAt  DateTime?
   isQuarantined    Boolean  @default(false)
+  lastError        String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

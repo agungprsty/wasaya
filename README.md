@@ -157,14 +157,6 @@ CRON_SECRET=your-cron-secret-for-automated-jobs
 | PUT | `/api/chatbot?id={id}` | Update a chatbot rule |
 | DELETE | `/api/chatbot?id={id}` | Delete a chatbot rule |
 
-### Products
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/products` | List catalog products |
-| POST | `/api/products` | Add a product |
-| PUT | `/api/products?id={id}` | Update a product |
-| DELETE | `/api/products?id={id}` | Delete a product |
-
 ### Scheduled Messages
 | Method | Path | Description |
 |--------|------|-------------|

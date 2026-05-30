@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getTokenFromCookies, verifyToken } from "@/lib/auth";
+import { getTokenFromCookies, verifyToken, clearTokenCookie } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +11,9 @@ export async function GET(request: NextRequest) {
 
     const payload = verifyToken(token);
     if (!payload) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+      const res = NextResponse.json({ error: "Invalid token" }, { status: 401 });
+      clearTokenCookie(res);
+      return res;
     }
 
     const [user, subscription] = await Promise.all([
@@ -26,7 +28,9 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      const res = NextResponse.json({ error: "User not found" }, { status: 401 });
+      clearTokenCookie(res);
+      return res;
     }
 
     return NextResponse.json({ user, subscription });

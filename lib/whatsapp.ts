@@ -73,6 +73,7 @@ class BaileysManager {
   private knownSessions: Map<string, { userId: string; deviceId: string }> = new Map();
   private healthCheckTimer: NodeJS.Timeout | null = null;
   private pendingPairings: Map<string, string> = new Map();
+  private duplicateErrors: Map<string, string> = new Map();
   private credsSavePromises: Map<string, Promise<void>> = new Map();
   private saveCredsFns: Map<string, () => Promise<void>> = new Map();
 
@@ -190,6 +191,22 @@ class BaileysManager {
   }
 
   async startPairing(userId: string, phone: string, deviceId = "main"): Promise<string | null> {
+    const normalizedPhone = phone.replace(/[^0-9]/g, "");
+    if (!normalizedPhone) {
+      throw new Error("Invalid phone number");
+    }
+
+    const existing = await prisma.whatsAppSession.findFirst({
+      where: {
+        phone: normalizedPhone,
+        status: { in: ["connected", "connecting"] },
+        userId: { not: userId },
+      },
+    });
+    if (existing) {
+      throw new Error("Phone number is already paired by another user");
+    }
+
     const key = makeKey(userId, deviceId);
     this.pendingPairings.set(key, phone);
     try {
@@ -211,10 +228,12 @@ class BaileysManager {
       this.sockets.delete(key);
     }
 
+    this.duplicateErrors.delete(key);
+
     await prisma.whatsAppSession.upsert({
       where: { userId_deviceId: { userId, deviceId } },
       create: { userId, deviceId, status: "connecting" },
-      update: { status: "connecting", qrCode: null },
+      update: { status: "connecting", qrCode: null, lastError: null },
     });
 
     this.manualDisconnects.delete(key);
@@ -290,6 +309,30 @@ class BaileysManager {
         const phone = state.creds.me?.id
           ? state.creds.me.id.split(":")[0]
           : null;
+
+        if (phone) {
+          const duplicate = await prisma.whatsAppSession.findFirst({
+            where: {
+              phone,
+              status: { in: ["connected", "connecting"] },
+              userId: { not: userId },
+            },
+          });
+          if (duplicate) {
+            const errorMsg = "Phone number is already paired by another user";
+            this.duplicateErrors.set(key, errorMsg);
+            this.manualDisconnects.add(key);
+            this.sockets.delete(key);
+            await prisma.whatsAppSession.upsert({
+              where: { userId_deviceId: { userId, deviceId } },
+              create: { userId, deviceId, status: "disconnected", lastError: errorMsg },
+              update: { status: "disconnected", qrCode: null, lastError: errorMsg },
+            });
+            await sock.logout().catch(() => {});
+            return;
+          }
+        }
+
         await prisma.whatsAppSession.upsert({
           where: { userId_deviceId: { userId, deviceId } },
           create: { userId, deviceId, status: "connected", phone, qrCode: null },
@@ -325,6 +368,16 @@ class BaileysManager {
             }, delay);
             return;
           }
+        }
+
+        const dupError = this.duplicateErrors.get(key);
+        if (dupError) {
+          await (this.credsSavePromises.get(key) ?? Promise.resolve());
+          await (this.saveCredsFns.get(key)?.() ?? Promise.resolve());
+          await prisma.baileysAuthCred.deleteMany({
+            where: { userId, deviceId },
+          }).catch(() => {});
+          this.duplicateErrors.delete(key);
         }
 
         this.manualDisconnects.delete(key);

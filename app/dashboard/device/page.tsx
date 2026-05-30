@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 interface WaDevice {
   id: string;
@@ -22,6 +23,7 @@ export default function DevicePage() {
   const [editingName, setEditingName] = useState<Record<string, string>>({});
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const modalRef = useRef<HTMLDivElement | null>(null);
+  const lastErrorShown = useRef<string | null>(null);
 
   const fetchDevices = useCallback(async () => {
     try {
@@ -39,9 +41,13 @@ export default function DevicePage() {
       const res = await fetch(`/api/whatsapp/status?deviceId=${deviceId}`);
       const data = await res.json().catch(() => ({}));
       const s = data.session || {};
-      if (s.status === "connected" || s.status === "disconnected") {
+      if (s.status === "connected" || s.lastError) {
         setConnectingStates((prev) => ({ ...prev, [deviceId]: false }));
         setQrStates((prev) => ({ ...prev, [deviceId]: null }));
+      }
+      if (s.lastError && s.lastError !== lastErrorShown.current) {
+        lastErrorShown.current = s.lastError;
+        toast.error(s.lastError);
       }
       setDevices((prev) =>
         prev.map((d) =>
@@ -98,12 +104,14 @@ export default function DevicePage() {
       }
       return;
     }
-    pollRef.current = setInterval(() => {
+    const run = () => {
       for (const d of activeConnectingDevices) {
         fetchStatus(d.deviceId);
         fetchQR(d.deviceId);
       }
-    }, 3000);
+    };
+    run();
+    pollRef.current = setInterval(run, 3000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
@@ -140,11 +148,23 @@ export default function DevicePage() {
 
   async function handleConnect(deviceId: string, hasPhone = false) {
     qrSeen.current[deviceId] = false;
+    lastErrorShown.current = null;
     setConnectingStates((prev) => ({ ...prev, [deviceId]: true }));
     setQrStates((prev) => ({ ...prev, [deviceId]: null }));
     setCountdowns((prev) => ({ ...prev, [deviceId]: hasPhone ? 30 : 20 }));
-    await fetch(`/api/whatsapp/connect?deviceId=${deviceId}`, { method: "POST" });
-    fetchStatus(deviceId);
+    try {
+      const res = await fetch(`/api/whatsapp/connect?deviceId=${deviceId}`, { method: "POST" });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({}));
+        toast.error(error || "Failed to connect");
+        setConnectingStates((prev) => ({ ...prev, [deviceId]: false }));
+        return;
+      }
+    } catch {
+      toast.error("Network error while connecting");
+      setConnectingStates((prev) => ({ ...prev, [deviceId]: false }));
+      return;
+    }
   }
 
   async function handleDisconnect(deviceId: string) {
