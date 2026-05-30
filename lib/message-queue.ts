@@ -3,6 +3,7 @@ import { Queue, Worker, Job } from "bullmq";
 import { redis } from "@/lib/redis";
 import { whatsappManager } from "@/lib/whatsapp";
 import { safetyMonitor } from "@/lib/safety-monitor";
+import { checkLimit } from "@/lib/usage-tracker";
 
 export interface SendJobData {
   userId: string;
@@ -80,6 +81,11 @@ export function startWorker(): Worker {
     "wa-send",
     async (job) => {
       const { userId, tier, jid, body, media, deviceId, location } = job.data;
+
+      const limitCheck = await checkLimit(userId, tier);
+      if (!limitCheck.allowed) {
+        throw new Error(limitCheck.error || "Usage limit exceeded");
+      }
 
       const quarantined = await safetyMonitor.isQuarantined(userId, deviceId || "main");
       if (quarantined) {

@@ -106,7 +106,7 @@ export default function ForgotPasswordPage() {
               <div className="rounded-xl border border-[#DCF8C6] bg-[#DCF8C6]/50 px-4 py-4 text-sm text-[#075E54]">
                 <p className="font-semibold">Check your inbox</p>
                 <p className="mt-1 text-zinc-600">
-                  If an account with <strong>{email}</strong> exists, we&apos;ve sent a password reset link.
+                  If an account with <strong>{email} </strong>exists, we&apos;ve sent a password reset link.
                 </p>
               </div>
               <Link

@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/api-auth";
-import { whatsappManager } from "@/lib/whatsapp";
-import crypto from "crypto";
 import { rateLimit } from "@/lib/rate-limit";
 import { validatePhone } from "@/lib/phone-utils";
-import { humanDelay } from "@/lib/delay-engine";
-import { getUserTier, getTierLimits, getDailyLimit } from "@/lib/api-tier";
-import { getUsage } from "@/lib/usage";
+import { getUserTier, getTierLimits } from "@/lib/api-tier";
+import { checkAndTrack } from "@/lib/usage-tracker";
+import { enqueueMessage } from "@/lib/message-queue";
+import { toJID } from "@/lib/whatsapp";
 
 export async function POST(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
 
-  const rl = rateLimit(user!.userId, "broadcast", 10, 60000);
+  const rl = await rateLimit(user!.userId, "broadcast", 10, 60000);
   if (rl) return rl;
 
   const body = await request.json();
@@ -48,60 +46,36 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const [usage, dbUser] = await Promise.all([
-    getUsage(user!.userId),
-    prisma.user.findUnique({ where: { id: user!.userId }, select: { createdAt: true } }),
-  ]);
-  const dailyLimit = await getDailyLimit(tier, dbUser?.createdAt ?? new Date());
-  if (usage.daily + messages.length > dailyLimit) {
-    return NextResponse.json(
-      {
-        error: `Batas harian tercapai. Kamu sudah menggunakan ${usage.daily}/${dailyLimit} pesan hari ini.`,
-      },
-      { status: 429 },
-    );
-  }
-  if (usage.monthly + messages.length > limits.monthlyLimit) {
-    return NextResponse.json(
-      {
-        error: `Batas bulanan tercapai (${usage.monthly}/${limits.monthlyLimit}).`,
-        upgrade_url: "/pricing",
-      },
-      { status: 429 },
-    );
-  }
-
   const results: { to: string; status: string; error?: string }[] = [];
 
   for (const { to, body: msgBody, location } of messages) {
+    const limitCheck = await checkAndTrack(user!.userId, tier, undefined, 1);
+    if (!limitCheck.allowed) {
+      results.push({ to, status: "limit_exceeded" });
+      continue;
+    }
+
     try {
-      await whatsappManager.sendMessage(user!.userId, to, msgBody, null, deviceId, location || null);
-      results.push({ to, status: "sent" });
+      const jid = toJID(to);
+      await enqueueMessage({
+        userId: user!.userId,
+        tier,
+        jid,
+        body: msgBody,
+        deviceId,
+        location: location || null,
+      });
+      results.push({ to, status: "queued" });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("not connected")) {
-        await prisma.whatsAppMessage.create({
-          data: {
-            userId: user!.userId,
-            to,
-            from: "gateway",
-            messageId: crypto.randomUUID(),
-            body: msgBody,
-            status: "pending",
-          },
-        });
-        results.push({ to, status: "pending" });
-      } else {
-        results.push({ to, status: "failed", error: msg });
-      }
+      results.push({ to, status: "failed", error: msg });
     }
-    await humanDelay("broadcast");
   }
 
   const summary = {
     total: results.length,
-    sent: results.filter((r) => r.status === "sent").length,
-    pending: results.filter((r) => r.status === "pending").length,
+    queued: results.filter((r) => r.status === "queued").length,
+    limit_exceeded: results.filter((r) => r.status === "limit_exceeded").length,
     failed: results.filter((r) => r.status === "failed").length,
   };
 

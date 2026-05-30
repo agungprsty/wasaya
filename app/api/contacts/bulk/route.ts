@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   const { error, user } = await requireUser(request);
   if (error) return error;
 
-  const rl = rateLimit(user!.userId, "contacts-bulk", 5, 60000);
+  const rl = await rateLimit(user!.userId, "contacts-bulk", 5, 60000);
   if (rl) return rl;
 
   const { contacts } = await request.json();

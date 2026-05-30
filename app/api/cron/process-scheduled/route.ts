@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/api-auth";
 import { humanDelay } from "@/lib/delay-engine";
-import { getUserTier, getTierLimits } from "@/lib/api-tier";
+import { getUserTier } from "@/lib/api-tier";
 import { enqueueMessage } from "@/lib/message-queue";
-import { getUsage } from "@/lib/usage";
+import { checkAndTrack } from "@/lib/usage-tracker";
 import { toJID } from "@/lib/whatsapp";
 
 function calculateNextRun(msg: {
@@ -79,15 +79,23 @@ export async function POST(request: NextRequest) {
     });
 
     const tier = await getUserTier(msg.userId);
-    const limits = getTierLimits(tier);
-
-    const usage = await getUsage(msg.userId);
+    const userRecord = await prisma.user.findUnique({
+      where: { id: msg.userId },
+      select: { createdAt: true },
+    });
 
     let sent = 0;
     let failed = 0;
 
-    for (const recipient of recipients) {
-      if (usage.monthly + sent >= limits.monthlyLimit) {
+    for (let i = 0; i < recipients.length; i++) {
+      const recipient = recipients[i];
+      const limitCheck = await checkAndTrack(
+        msg.userId,
+        tier,
+        userRecord?.createdAt,
+        1,
+      );
+      if (!limitCheck.allowed) {
         failed++;
         continue;
       }

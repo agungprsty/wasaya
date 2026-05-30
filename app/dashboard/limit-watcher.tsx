@@ -2,18 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-
-const TIER_DAILY_LIMITS: Record<string, number> = {
-  free: 50,
-  pro: 200,
-  enterprise: Infinity,
-};
-
-const TIER_MONTHLY_LIMITS: Record<string, number> = {
-  free: 500,
-  pro: 5_000,
-  enterprise: Infinity,
-};
+import { TIER_DAILY_LIMITS, TIER_MONTHLY_LIMITS } from "@/app/dashboard/limit-constants";
 
 export default function LimitWatcher() {
   const shownRef = useRef(false);

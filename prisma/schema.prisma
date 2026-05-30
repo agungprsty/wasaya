@@ -28,8 +28,9 @@ model User {
   groups         Group[]
   chatbotRules   ChatbotRule[]
   products       Product[]
-  webhookEvents    WebhookEvent[]
+  webhookEvents      WebhookEvent[]
   passwordResetTokens PasswordResetToken[]
+  usageRecords       UsageRecord[]
 }
 
 model ApiKey {
@@ -144,8 +145,6 @@ model WhatsAppSession {
   phone      String?
   qrCode     String?
   proxyUrl   String?
-  dailyCount       Int      @default(0)
-  monthlyCount     Int      @default(0)
   outboundCount    Int      @default(0)
   inboundCount     Int      @default(0)
   safetyViolations Int      @default(0)
@@ -221,6 +220,21 @@ model Product {
   updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UsageRecord {
+  id         String   @id @default(uuid())
+  userId     String
+  type       String   // "daily" | "monthly"
+  periodKey  String   // "2026-05-30" (WIB) for daily, "2026-05" for monthly
+  count      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, periodKey])
+  @@index([userId, type])
 }
 
 model PasswordResetToken {

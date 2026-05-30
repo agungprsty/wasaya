@@ -22,11 +22,7 @@ const navItems = [
   { href: "/docs", label: "API Docs", icon: "M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" },
 ];
 
-const TIER_DAILY_LIMITS: Record<string, number> = {
-  free: 50,
-  pro: 200,
-  enterprise: Infinity,
-};
+import { TIER_DAILY_LIMITS } from "./limit-constants";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,18 +34,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [dailyLimit, setDailyLimit] = useState(50);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json().catch(() => null))
-      .then((data) => {
-        if (!data?.user) { router.push("/login"); return; }
-        setUser(data.user);
-        if (data.subscription) {
-          setTier(data.subscription.tier);
-          setDailySent(data.subscription.dailySentCount ?? 0);
-          setDailyLimit(TIER_DAILY_LIMITS[data.subscription.tier] ?? 50);
-        }
-      })
-      .catch(() => router.push("/login"));
+    function fetchData() {
+      fetch("/api/auth/me")
+        .then((res) => res.json().catch(() => null))
+        .then((data) => {
+          if (!data?.user) { router.push("/login"); return; }
+          setUser(data.user);
+          if (data.subscription) {
+            setTier(data.subscription.tier);
+            setDailyLimit(TIER_DAILY_LIMITS[data.subscription.tier] ?? 50);
+          }
+          if (data.usage) {
+            setDailySent(data.usage.daily ?? 0);
+          }
+        })
+        .catch(() => router.push("/login"));
+    }
+
+    fetchData();
+    const interval = setInterval(fetchData, 60_000);
+    return () => clearInterval(interval);
   }, [router]);
 
   const isFree = tier === "free";
