@@ -78,6 +78,18 @@ export async function GET(request: NextRequest) {
 - Clears the `token` cookie
 - Returns: `200 OK`
 
+### `/api/auth/forgot-password` (POST)
+- Body: `{ email }`
+- Sends password reset email via nodemailer (from `lib/email.ts`)
+- Creates `PasswordResetToken` in DB with expiry
+- Returns: `200 { message: "If email exists, reset link sent" }`
+
+### `/api/auth/reset-password` (POST)
+- Body: `{ token, password }`
+- Validates token from `PasswordResetToken` (checks expiry, not used)
+- Hashes new password, updates User, marks token as used
+- Returns: `200 { message: "Password reset successful" }`
+
 ## Protected Routes Pattern
 ```typescript
 export async function GET(request: NextRequest) {
@@ -99,6 +111,11 @@ export async function GET(request: NextRequest) {
 |----------|-------------|
 | `JWT_SECRET` | Secret for JWT sign/verify (change in production) |
 | `CRON_SECRET` | Secret for cron job authentication |
+| `SMTP_HOST` | SMTP server for password reset emails |
+| `SMTP_PORT` | SMTP port (default: 587) |
+| `SMTP_USER` | SMTP username |
+| `SMTP_PASS` | SMTP password |
+| `SMTP_FROM` | From address for emails |
 
 ## Best Practices (Required)
 

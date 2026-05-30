@@ -40,24 +40,100 @@ This project uses Next.js 16.2.6 with Turbopack (default bundler). The following
 |-------|-----------|
 | Framework | Next.js 16.2.6 (App Router, Turbopack) |
 | Language | TypeScript 5+ (strict mode) |
-| Database | PostgreSQL + Prisma ORM v6 |
+| Database | PostgreSQL + Prisma ORM v6.19.3 |
 | Auth | JWT (httpOnly cookies), bcryptjs |
 | WhatsApp | @whiskeysockets/baileys v7.0.0-rc13 (WebSocket murni, tanpa browser) |
+| Queue | BullMQ v5 + Redis (ioredis) |
+| Email | nodemailer |
+| Image/Media | jimp, @aws-sdk/client-s3 |
+| Maps | leaflet + @types/leaflet |
 | Styling | Tailwind CSS v4 (`@import "tailwindcss"`) |
+| Icons | lucide-react |
+| Toast | sonner |
+| Logging | pino |
 | Linting | ESLint v9 (flat config, `eslint.config.mjs`) |
 | Package manager | npm |
 
 ## Directory Structure
 ```
-app/           # Next.js App Router (pages + API routes)
-  layout.tsx   # Root layout (server component)
-  page.tsx     # Landing page
-  dashboard/   # Dashboard pages (client components)
-  api/         # API routes (route.ts per resource)
-lib/           # Shared utilities & business logic (no imports from app/)
-types/         # Global TypeScript declarations
-prisma/        # Prisma schema + migrations
-public/        # Static assets
+app/                    # Next.js App Router (pages + API routes)
+  layout.tsx            # Root layout (server component)
+  page.tsx              # Landing page (TEMANWA brand)
+  globals.css           # Global styles (Tailwind v4 @import)
+  AuthNavButtons.tsx    # Auth nav component (landing page)
+  components/           # Shared client components
+  login/                # Login page
+  register/             # Register page
+  forgot-password/      # Forgot password page
+  reset-password/       # Reset password page
+  dashboard/            # Dashboard pages (client components)
+    page.tsx            # Overview with analytics + usage limits
+    layout.tsx          # Dashboard layout with sidebar
+    limit-constants.ts  # TIER_DAILY_LIMITS / TIER_MONTHLY_LIMITS
+    limit-watcher.tsx   # Usage limit notification component
+    send/               # Send message page
+    messages/           # Message history page
+    contacts/           # Contact management page
+    groups/             # Contact groups page
+    templates/          # Message templates page
+    chatbot/            # Chatbot rules page
+    broadcast/          # Broadcast page
+    scheduled/          # Scheduled messages page
+    device/             # WhatsApp device management page
+    keys/               # API keys page
+    settings/           # Settings page (webhook, auto-reply)
+  api/                  # API routes (route.ts per resource)
+    auth/               # register, login, me, logout, forgot-password, reset-password
+    analytics/          # Analytics endpoint
+    messages/           # Message CRUD
+    broadcast/          # Broadcast
+    templates/          # Template CRUD
+    contacts/           # Contact CRUD
+    groups/             # Contact groups CRUD
+    keys/               # API key CRUD
+    settings/           # Settings CRUD
+    chatbot/            # Chatbot rule CRUD
+    scheduler/          # Scheduled message CRUD
+    whatsapp/           # Device connect/disconnect/status/qrcode
+    webhook-test/       # Webhook test trigger
+    cron/               # Cron jobs (process-scheduled)
+  about/                # About page
+  contact-support/      # Contact support page
+  docs/                 # API docs page
+  safety-guidelines/    # Safety guidelines page
+  privacy/              # Privacy policy page
+  terms/                # Terms of service page
+lib/                    # Shared utilities & business logic (no imports from app/)
+  prisma.ts             # Prisma client singleton
+  api-auth.ts           # JWT + API key auth middleware
+  auth.ts               # Token/password helpers
+  whatsapp.ts           # BaileysManager singleton (WASocket lifecycle)
+  baileys-auth.ts       # Prisma-based SignalKeyStore
+  chatbot.ts            # Chatbot rules engine + auto-reply
+  message-queue.ts      # BullMQ queue + worker
+  redis.ts              # ioredis singleton
+  rate-limit.ts         # Rate limiter
+  usage-tracker.ts      # Usage limit checking + tracking
+  api-tier.ts           # Tier resolution
+  delay-engine.ts       # Human-like typing/message delays
+  safety-monitor.ts     # WhatsApp safety violation monitor
+  email.ts              # Nodemailer email sender
+  logger.ts             # Pino logger
+  phone-utils.ts        # Phone validation
+  template-utils.ts     # Template variable extraction/interpolation
+  webhook.ts            # Webhook delivery with HMAC-SHA256
+  usage.ts              # Usage data helpers
+types/                  # Global TypeScript declarations
+  cache-life.d.ts       # Next.js cache life types
+  routes.d.ts           # Route type helpers
+  validator.ts          # Zod/validation schemas
+prisma/                 # Prisma schema + migrations
+  schema.prisma         # Data model (17 models)
+  seed.ts               # Seed script
+public/                 # Static assets
+scripts/                # Utility scripts
+  backfill-usage.ts     # Usage record backfill
+  convert-jid-format.sql# JID format migration SQL
 ```
 
 ## Path Alias
@@ -177,9 +253,14 @@ export async function GET(request: NextRequest) {
 - All primary keys are **UUIDs** (`@default(uuid())`)
 - All user-owned data includes `userId` foreign key with `onDelete: Cascade`
 - Use `@default(now())` for creation timestamps, `@updatedAt` for updates
-- JSON fields: use Prisma `Json` type (`ScheduledMessage.recipients`, `WebhookEvent.payload`)
-- Array fields: use Prisma `String[]` (`ChatbotRule.keywords`)
+- JSON fields: use Prisma `Json` type (`ScheduledMessage.recipients`, `WebhookEvent.payload`, `Settings.enterpriseCustomSettings`)
+- Array fields: use Prisma `String[]` (`ChatbotRule.keywords`, `Settings.adminNumbers`)
 - Enum-like values stored as plain `String` (not native Prisma enums) with documented status values
+- Tier/subscription stored in a separate `Subscription` model (`free` | `pro` | `enterprise`)
+- Usage tracking via `UsageRecord` model with `@@unique([userId, type, periodKey])` composite key
+- Password reset via `PasswordResetToken` model with expiry
+- Product catalog via `Product` model for business messaging
+- WhatsApp auth stored in `BaileysAuthCred` model (Prisma-based `SignalKeyStore`)
 
 ## WhatsApp Module Patterns
 - `BaileysManager` is a **singleton class** keyed by `userId_deviceId`
@@ -190,10 +271,30 @@ export async function GET(request: NextRequest) {
 - Event handlers update both in-memory state and database simultaneously
 - Fire-and-forget pattern for non-blocking operations (e.g., `startConnect()`)
 
+## Queue & Background Jobs
+- BullMQ v5 for message broadcast queue (`wa-send` queue)
+- Worker started in `instrumentation.ts` via `register()` hook
+- Tier-based priority: enterprise > pro > free
+- Tier-based concurrency: enterprise (10), pro (2), free (1)
+- Per-conversation throttle via Redis (separate from usage limits)
+- Deduplication via `dedupId` option (60s TTL)
+
+## Usage Tracking & Limits
+- `UsageRecord` model tracks daily and monthly counts per user
+- `checkAndTrack()` / `checkLimit()` enforces tier limits before sending
+- Limits defined in `limit-constants.ts`: daily (free: 50, pro: 200, enterprise: ∞), monthly (free: 500, pro: 5,000, enterprise: ∞)
+- Safety monitoring via `safetyMonitor` tracks violations and quarantines devices
+
+## Human-like Delay Engine
+- `delay-engine.ts` implements typing delays (`calculateTypingDelay`), read delays, and jitter
+- Configurable via `Settings` model: `msPerChar`, `readDelayMs`, `typingEnabled`
+- Random presence updates (typing/paused) before sending messages
+
 ## Environment Variables
 - All env vars defined in `.env.example` — keep them synced
 - Runtime access via `process.env.VAR_NAME` (no config objects)
 - Required: `DATABASE_URL`, `JWT_SECRET`, `CRON_SECRET`
+- Also needed: `REDIS_URL` (BullMQ + rate limiting), SMTP vars for email, `NEXT_PUBLIC_APP_URL`
 
 ---
 
@@ -220,6 +321,7 @@ export async function GET(request: NextRequest) {
 - Don't modify `lib/` files to import from `app/` — `lib/` is a leaf module
 - Don't use deprecated `whatsapp-web.js` — use `BaileysManager` from `@/lib/whatsapp`
 - Don't use deprecated patterns: `next/legacy/image`, `images.domains`, `unstable_` prefixed APIs
+- Don't forget to run `npx prisma generate` before `npm run build`
 
 ---
 
@@ -234,6 +336,7 @@ export async function GET(request: NextRequest) {
 | `npx prisma generate` | Generate Prisma client (after schema changes) |
 | `npx prisma migrate dev` | Create and apply migrations |
 | `npx prisma studio` | Open database browser GUI |
+| `npm run backfill:usage` | Backfill usage records for existing users |
 
 ---
 
