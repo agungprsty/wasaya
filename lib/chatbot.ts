@@ -32,8 +32,9 @@ export async function processAutoReply(
   const settings = await prisma.settings.findUnique({ where: { userId } });
   if (!settings?.autoReplyActive || !settings?.autoReplyText) return null;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const wibOffset = 7 * 60 * 60 * 1000;
+  const today = new Date(Math.floor((now.getTime() + wibOffset) / 86400000) * 86400000 - wibOffset);
 
   const alreadyReplied = await prisma.autoReplyLog.findFirst({
     where: {
@@ -50,5 +51,13 @@ export async function processAutoReply(
 export async function markAutoReplySent(userId: string, from: string): Promise<void> {
   await prisma.autoReplyLog.create({
     data: { userId, contact: from },
+  }).catch(() => {});
+}
+
+export async function cleanupOldAutoReplyLogs(): Promise<void> {
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - 7);
+  await prisma.autoReplyLog.deleteMany({
+    where: { repliedAt: { lt: cutoff } },
   }).catch(() => {});
 }

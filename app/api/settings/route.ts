@@ -40,13 +40,18 @@ export async function PUT(request: NextRequest) {
 
   const { webhookUrl, webhookSecret, autoReplyText, autoReplyActive, watermarkText, watermarkActive, msPerChar, readDelayMs, typingEnabled, broadcastEnabled, concurrency, adminNumbers, safetyMode, enterpriseCustomSettings, proxyUrl } = await request.json();
 
+  const sub = await prisma.subscription.findUnique({ where: { userId: user!.userId } });
+  const tier = (sub?.tier as string) || "free";
+
   const data: Record<string, unknown> = {};
   if (webhookUrl !== undefined) data.webhookUrl = webhookUrl;
   if (webhookSecret !== undefined) data.webhookSecret = webhookSecret;
   if (autoReplyText !== undefined) data.autoReplyText = autoReplyText;
   if (autoReplyActive !== undefined) data.autoReplyActive = autoReplyActive;
-  if (watermarkText !== undefined) data.watermarkText = watermarkText;
-  if (watermarkActive !== undefined) data.watermarkActive = watermarkActive;
+  if (tier === "pro" || tier === "enterprise") {
+    if (watermarkText !== undefined) data.watermarkText = watermarkText;
+    if (watermarkActive !== undefined) data.watermarkActive = watermarkActive;
+  }
   if (msPerChar !== undefined) data.msPerChar = msPerChar;
   if (readDelayMs !== undefined) data.readDelayMs = readDelayMs;
   if (typingEnabled !== undefined) data.typingEnabled = typingEnabled;

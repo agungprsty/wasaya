@@ -671,6 +671,13 @@ class BaileysManager {
 
   private async applyWatermark(userId: string, body: string): Promise<string> {
     try {
+      const sub = await prisma.subscription.findUnique({ where: { userId } });
+      const tier = (sub?.tier as string) || "free";
+
+      if (tier !== "pro" && tier !== "enterprise") {
+        return body + `\n\n_Sent via temanwa_`;
+      }
+
       const settings = await prisma.settings.findUnique({ where: { userId } });
       if (settings?.watermarkActive && settings?.watermarkText) {
         const watermark = settings.watermarkText
