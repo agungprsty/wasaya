@@ -13,8 +13,8 @@ export function verifyPassword(password: string, hash: string): Promise<boolean>
   return bcrypt.compare(password, hash);
 }
 
-export function signToken(payload: { userId: string; email: string }) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+export function signToken(payload: { userId: string; email: string }, expiresIn: string = "7d") {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn } as jwt.SignOptions);
 }
 
 export function verifyToken(token: string) {
@@ -32,12 +32,12 @@ export function getTokenFromCookies(request: Request): string | null {
   return match ? match[1] : null;
 }
 
-export function setTokenCookie(response: NextResponse, token: string) {
+export function setTokenCookie(response: NextResponse, token: string, keepSignedIn: boolean = false) {
   response.cookies.set("token", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: keepSignedIn ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7,
     path: "/",
   });
 }

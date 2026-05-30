@@ -4,10 +4,14 @@ import { hashPassword, signToken, setTokenCookie } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, email, password } = await request.json();
+    const { name, email, password, termsAccepted } = await request.json();
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: "Name, email, and password are required" }, { status: 400 });
+    }
+
+    if (!termsAccepted) {
+      return NextResponse.json({ error: "You must agree to the Terms of Service and Privacy Policy" }, { status: 400 });
     }
 
     if (password.length < 8) {

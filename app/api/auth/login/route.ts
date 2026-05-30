@@ -4,7 +4,7 @@ import { verifyPassword, signToken, setTokenCookie } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const { email, password, keepSignedIn } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
@@ -20,12 +20,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    const token = signToken({ userId: user.id, email: user.email });
+    const expiry = keepSignedIn ? "30d" : "7d";
+    const token = signToken({ userId: user.id, email: user.email }, expiry);
     const response = NextResponse.json({
       user: { id: user.id, name: user.name, email: user.email },
     });
 
-    setTokenCookie(response, token);
+    setTokenCookie(response, token, keepSignedIn);
     return response;
   } catch (error) {
     console.error("Login error:", error);

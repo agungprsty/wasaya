@@ -1,47 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, FormEvent, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, FormEvent, Suspense } from "react";
 
-export default function LoginPage() {
+function ResetPasswordForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [keepSignedIn, setKeepSignedIn] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
 
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json().catch(() => null))
-      .then((data) => {
-        if (data?.user) router.push("/dashboard");
-      })
-      .catch(() => {});
-  }, [router]);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, keepSignedIn }),
+        body: JSON.stringify({ token, password }),
       });
 
       let data;
       try { data = await res.json(); } catch { data = {}; }
 
       if (!res.ok) {
-        setError(data.error || "Login failed");
+        setError(data.error || "Reset failed");
         return;
       }
 
-      router.push("/dashboard");
+      setSuccess(true);
     } catch {
       setError("Connection error. Please try again.");
     } finally {
@@ -49,9 +54,41 @@ export default function LoginPage() {
     }
   }
 
+  if (!token) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white px-6">
+        <div className="w-full max-w-sm text-center">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#075E54]">Invalid reset link</h1>
+          <p className="mt-2 text-sm text-zinc-500">This reset link is invalid or missing.</p>
+          <Link href="/forgot-password" className="mt-6 inline-block text-sm font-medium text-[#075E54] hover:text-[#25D366]">
+            Request a new reset link
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white px-6">
+        <div className="w-full max-w-sm text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#DCF8C6]">
+            <svg className="h-6 w-6 text-[#075E54]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+          </div>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-[#075E54]">Password reset successful</h1>
+          <p className="mt-2 text-sm text-zinc-500">Your password has been updated. You can now sign in with your new password.</p>
+          <Link href="/login" className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-[#25D366] px-8 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1DAF5A] hover:shadow-md">
+            Sign in
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen font-sans">
-      {/* Left panel */}
       <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-[#075E54] p-12 lg:flex">
         <div className="relative z-10">
           <Link href="/" className="flex items-center gap-2 text-lg font-bold text-white/90">
@@ -61,22 +98,18 @@ export default function LoginPage() {
             TEMANWA
           </Link>
         </div>
-
         <div className="relative z-10 space-y-6">
           <blockquote className="text-2xl font-light leading-relaxed text-white/90">
             &ldquo;We cut our customer response time by 80% and doubled engagement within the first month.&rdquo;
           </blockquote>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366]/30 text-sm font-semibold text-white">
-              SR
-            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366]/30 text-sm font-semibold text-white">SR</div>
             <div>
               <p className="text-sm font-medium text-white">Sarah R.</p>
               <p className="text-xs text-white/60">Product Manager, TechCorp</p>
             </div>
           </div>
         </div>
-
         <div className="pointer-events-none absolute inset-0 select-none">
           <div className="absolute -right-10 -top-10 h-64 w-64 rounded-full border border-white/5" />
           <div className="absolute -right-20 -top-20 h-80 w-80 rounded-full border border-white/5" />
@@ -84,13 +117,9 @@ export default function LoginPage() {
           <div className="absolute bottom-20 left-12 h-3 w-3 rounded-full bg-[#25D366]/40" />
           <div className="absolute right-20 top-1/3 h-2 w-2 rounded-full bg-[#DCF8C6]/30" />
           <div className="absolute bottom-1/3 left-1/3 h-1.5 w-1.5 rounded-full bg-white/20" />
-          <div className="absolute left-1/2 top-1/4 h-3 w-20 rounded-full bg-white/5" />
-          <div className="absolute right-12 top-1/2 h-2 w-32 rounded-full bg-white/5" />
-          <div className="absolute left-8 bottom-1/4 h-2 w-24 rounded-full bg-white/5" />
         </div>
       </div>
 
-      {/* Right panel */}
       <div className="flex w-full items-center justify-center bg-white px-6 lg:w-1/2">
         <div className="w-full max-w-sm">
           <div className="mb-10 lg:hidden">
@@ -103,85 +132,65 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-8">
-            <h1 className="text-2xl font-semibold tracking-tight text-[#075E54]">
-              Welcome back
-            </h1>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-              Enter your credentials to access your account.
-            </p>
+            <h1 className="text-2xl font-semibold tracking-tight text-[#075E54]">Set new password</h1>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-500">Enter your new password below.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                {error}
-              </div>
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-zinc-700">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1.5 block w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors focus:border-[#25D366] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="password" className="block text-sm font-medium text-zinc-700">
-                  Password
-                </label>
-                <Link href="/forgot-password" className="text-xs font-medium text-[#075E54] transition-colors hover:text-[#25D366]">
-                  Forgot?
-                </Link>
-              </div>
+              <label htmlFor="password" className="block text-sm font-medium text-zinc-700">New password</label>
               <input
                 id="password"
                 type="password"
-                autoComplete="current-password"
+                autoComplete="new-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="mt-1.5 block w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors focus:border-[#25D366] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
-                placeholder="Enter your password"
+                placeholder="Enter new password"
               />
             </div>
 
-            <label className="flex items-center gap-2.5 text-sm text-zinc-500">
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-zinc-700">Confirm new password</label>
               <input
-                type="checkbox"
-                checked={keepSignedIn}
-                onChange={(e) => setKeepSignedIn(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-300 text-[#25D366] focus:ring-[#25D366]/30"
+                id="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="mt-1.5 block w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors focus:border-[#25D366] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366]/15"
+                placeholder="Confirm new password"
               />
-              Keep me signed in
-            </label>
+            </div>
 
             <button
               type="submit"
               disabled={loading}
               className="flex h-11 w-full items-center justify-center rounded-xl bg-[#25D366] px-5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1DAF5A] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Resetting..." : "Reset password"}
             </button>
-
-            <p className="text-center text-sm text-zinc-400">
-              Don&apos;t have an account?{" "}
-              <Link href="/register" className="font-medium text-[#075E54] transition-colors hover:text-[#25D366]">
-                Create one
-              </Link>
-            </p>
           </form>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-white px-6">
+        <div className="text-sm text-zinc-500">Loading...</div>
+      </div>
+    }>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
